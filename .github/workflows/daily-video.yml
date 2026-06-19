@@ -48,6 +48,8 @@ jobs:
           PUBLISH_MODE: ${{ vars.PUBLISH_MODE || 'review' }}
           AI_CLIPS: ${{ vars.AI_CLIPS || '2' }}
           FAL_I2V_MODEL: ${{ vars.FAL_I2V_MODEL || 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video' }}
+          FAL_I2V_PRICE_PER_SEC: '0.07'
+          COST_CAP_USD: '2.00'
         run: python -m pipeline.run --source sheets
 
       - name: Upload artifact (the MP4 + spend log)
