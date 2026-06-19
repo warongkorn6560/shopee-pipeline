@@ -1,0 +1,10 @@
+# Core pipeline
+requests>=2.31
+openai>=1.40        # used for Vercel AI Gateway (OpenAI-compatible endpoint)
+anthropic>=0.40     # optional: only if LLM_PROVIDER=anthropic
+fal-client>=0.5
+Pillow>=10.3
+
+# Google Sheets product source
+google-api-python-client>=2.130
+google-auth>=2.30

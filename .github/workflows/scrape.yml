@@ -1,0 +1,22 @@
+name: Daily Shopee scrape
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 09:00 Asia/Bangkok daily
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scraper/requirements.txt
+      - name: Write service account JSON
+        run: echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > scraper/service-account.json
+      - name: Run scraper
+        env:
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: scraper/service-account.json
+        run: python scraper/scrape_shopee.py --top 3 --sink sheets

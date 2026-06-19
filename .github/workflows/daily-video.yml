@@ -1,0 +1,62 @@
+name: Daily Shopee AI video
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 09:00 Asia/Bangkok, once per day
+  workflow_dispatch:        # manual "Run workflow" button
+
+jobs:
+  make-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System deps (ffmpeg + Thai shaping)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libraqm0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python deps
+        run: pip install -r requirements.txt
+
+      - name: Write Google service account
+        run: printf '%s' '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > scraper/service-account.json
+
+      - name: Generate + publish one video
+        env:
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gateway' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'anthropic/claude-sonnet-4.6' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          TTS_PROVIDER: azure
+          AZURE_TTS_KEY: ${{ secrets.AZURE_TTS_KEY }}
+          AZURE_TTS_REGION: southeastasia
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: scraper/service-account.json
+          UPLOAD_POST_API_KEY: ${{ secrets.UPLOAD_POST_API_KEY }}
+          UPLOAD_POST_USER: ${{ secrets.UPLOAD_POST_USER }}
+          # Tunables (override defaults in config.py)
+          PUBLISH_MODE: ${{ vars.PUBLISH_MODE || 'review' }}
+          AI_CLIPS: ${{ vars.AI_CLIPS || '2' }}
+          FAL_I2V_MODEL: ${{ vars.FAL_I2V_MODEL || 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video' }}
+        run: python -m pipeline.run --source sheets
+
+      - name: Upload artifact (the MP4 + spend log)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-output
+          path: |
+            output/*.mp4
+            output/spend_log.json
+          retention-days: 7
+          if-no-files-found: ignore
