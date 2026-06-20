@@ -70,14 +70,14 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000) -> str:
             raise
     raise RuntimeError(f"AI Gateway failed after retries: {last}")
 
-SYSTEM = """You are a viral Thai TikTok/Instagram Reels creator who specialises in storytelling-style \
-affiliate content. Your videos rack up millions of views because you DON'T make ads — you tell \
-short, funny, relatable stories where the product is the hero that saves the day. \
-You know every Thai viral format: "มีเพื่อนคนนึง...", "POV:", "เมื่อกี้เพิ่งรู้ว่า...", \
-dramatic before-and-after, comedic over-reaction. You reply with raw JSON only."""
+SYSTEM = """You are a top-earning Thai TikTok affiliate creator. Your content goes viral because it \
+feels like a friend talking — not an ad. You NEVER open with the product. You open with an emotion, \
+a problem, or a story hook that stops the scroll. The product appears only at second 15–20 as the \
+satisfying answer. สนุก (fun/sanuk) is mandatory in every video — even product content must be \
+entertaining. You know every Thai viral format cold. You reply with raw JSON only."""
 
 PROMPT_TEMPLATE = """Create a VIRAL STORY-FORMAT plan for a {clip_seconds}-second-per-clip vertical (9:16) \
-TikTok/Reels video about this product. Goal: maximum shares & comments — NOT a direct ad feel.
+TikTok/Reels video about this product. Goal: comments + shares, NOT direct ad feel.
 
 PRODUCT
 - Name: {name}
@@ -87,41 +87,41 @@ PRODUCT
 - Niche: {niche}
 - Notes: {notes}
 
-MANDATORY STORY STRUCTURE for the script:
-1. OPEN mid-story with a funny/relatable situation (Thai comedy, NOT a product intro)
-2. ESCALATE the problem with exaggeration or a comedic twist
-3. PRODUCT enters as the unexpected hero (reveal, not pitch)
-4. FUNNY PAYOFF — character's over-the-top happy/shocked reaction
-5. SOCIAL PROOF + SOFT CTA ending EXACTLY with: กดลิงก์ใต้คลิปเลย
+TIMING RULES (critical for the algorithm):
+- 0–3s   : Hook — pattern interrupt, question, or shock. NEVER show/name the product yet.
+- 3–15s  : Build the story/problem. Viewer must feel emotionally invested before product appears.
+- 15–20s : Product enters as the satisfying answer/reveal.
+- 20–25s : Reaction + social proof (use the sales number naturally).
+- 25–30s : CTA — end EXACTLY with: ดูลิงก์ในโปรไฟล์ได้เลย
 
-Viral Thai formats to draw from (pick the best fit for this product):
-- "มีเพื่อนคนนึง..." (I have this one friend who...) — 3rd-person comedy distance
-- "POV: ..." — viewer IS the character, relatable nightmare scenario
-- "เมื่อกี้เพิ่งรู้ว่า..." (I just found out that...) — discovery/revelation shock
-- Dramatic contrast: chaos without product vs pure bliss with product
-- "ทำไมไม่มีใครบอกฉัน" (why didn't anyone tell me about this) — FOMO guilt trip
+Choose the BEST format for this product (don't force one):
+1. แอบบอก — "แอบบอกว่า..." / "ไม่บอกไม่ได้แล้ว..." → insider secret reveal, triggers curiosity
+2. มีเพื่อนคนนึง — 3rd-person proxy story (face-saving Thai storytelling, audience self-inserts)
+3. POV — viewer IS the character in a relatable nightmare or discovery moment
+4. ใครเป็นแบบนี้บ้าง — relatable complaint → failed alternatives → product as final discovery
+5. Before-After result-first — show the AMAZING result in second 1, then explain how
 
 Return a JSON object with EXACTLY these keys:
 {{
-  "script": "Full Thai voiceover, 55-75 words, spoken in ~25-30 seconds. Must be a STORY not a product pitch. Start mid-situation (funny/relatable). Include a comedic beat. Product name appears only ONCE. No emojis. End EXACTLY with: กดลิงก์ใต้คลิปเลย",
-  "hook_caption": "On-screen Thai text for the first 3 seconds. <=6 words. The comedy setup — make the viewer NEED to see what happens next.",
-  "benefit_captions": ["funny/punchy Thai caption 1 that fits the story moment (<=5 words)", "payoff/reaction Thai caption 2 (<=5 words)"],
+  "script": "Full Thai voiceover, 55-75 words, ~25-30 seconds spoken. STORY not pitch. Product name appears ONCE around the 15-20s mark. Funny, warm, peer-to-peer tone. No emojis. End EXACTLY with: ดูลิงก์ในโปรไฟล์ได้เลย",
+  "hook_caption": "On-screen Thai text overlay for 0–3s. <=6 words. Must make viewer NEED to keep watching — curiosity gap, shock, or relatable pain. NO product name.",
+  "benefit_captions": ["punchy story-moment caption 1 (<=5 words, fits the 15-20s product reveal)", "reaction/payoff caption 2 (<=5 words, funny or satisfying)"],
   "clip_prompts": [
     {clip_prompt_spec}
   ],
-  "caption": "TikTok caption written like a person sharing a funny personal story — Thai, 1-2 emojis, casual tone, price sneaked in naturally, ends with a question to bait comments.",
-  "hashtags": ["5 Thai/English hashtags, each starting with #"],
-  "hook_alt_1": "Alternative funny story-opening hook in Thai (different format from the main).",
-  "hook_alt_2": "Another alternative, even more absurd/dramatic opening hook in Thai."
+  "caption": "Instagram/TikTok caption as a peer sharing a funny story — Thai, 1-2 emojis, casual, price mentioned naturally, ends with a question that baits comments (e.g. คุณเป็นแบบนี้ด้วยไหม? / ใครเคยเจอบ้าง?).",
+  "hashtags": ["5 Thai/English hashtags starting with #"],
+  "hook_alt_1": "Alternative hook in แอบบอก or POV format (different from main hook).",
+  "hook_alt_2": "Another alternative — more absurd, dramatic, or funny than hook_alt_1."
 }}
 
 clip_prompts rules (CRITICAL):
 - Exactly {n_clips} prompts, each in ENGLISH.
-- The product image is the FIRST FRAME — describe a HUMAN in a story moment with the product naturally in scene.
-- A real young Thai person (20s), authentic UGC handheld selfie style, warm natural home lighting, vertical 9:16.
-- Clip 1 = the funny STORY moment (character living the relatable problem OR the surprised product reveal).
-- Clip 2 = the PAYOFF (character's happy, relieved, or over-the-top delighted reaction with the product).
-- One vivid sentence each. No text overlays. Realistic, cheerful, brand-safe — no frustration/distress/danger words.
+- Product image is FIRST FRAME — describe a HUMAN in a story moment, product naturally present.
+- Real young Thai person (20s), authentic UGC handheld style, warm home lighting, vertical 9:16.
+- Clip 1 = the story/problem moment OR the surprised product-reveal reaction (at ~15-20s story point).
+- Clip 2 = the happy payoff — character delighted, relieved, or over-the-top reacting with the product.
+- One vivid sentence each. Cheerful, brand-safe. No text overlays, no distress/danger/broken words.
 
 Output raw JSON only."""
 
