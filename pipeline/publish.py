@@ -33,9 +33,9 @@ def caption_block(plan, product) -> str:
         f"💰 {product.price_thb} THB | commission {product.commission_pct}%\n\n"
         f"📝 Caption:\n{plan.caption}\n\n"
         f"#️⃣ {tags}\n\n"
-        f"🔗 Affiliate: {product.affiliate_url}\n\n"
+        f"🔗 Affiliate link (update IG + TikTok bio to this):\n{product.affiliate_url}\n\n"
         f"🔁 Backup hooks:\n1) {plan.hook_alt_1}\n2) {plan.hook_alt_2}\n\n"
-        f"👉 Steps: download MP4 → post to TikTok/IG → upload to Shopee Video app."
+        f"👉 Steps: 1) Update IG & TikTok bio link → 2) Video auto-posted ✓ → 3) Upload to Shopee Video app."
     )
 
 
@@ -91,7 +91,7 @@ def publish(video: Path, plan, product, mode: str | None = None) -> dict:
     result = {"telegram": send_to_telegram(video, plan, product)}
     if mode == "auto":
         result["upload_post"] = auto_post(video, plan, product)
-        caption = plan.caption + " " + " ".join(plan.hashtags) + "\n" + product.affiliate_url
+        caption = plan.caption + " " + " ".join(plan.hashtags) + "\n\n🔗 ดูลิงก์ในโปรไฟล์ได้เลย 👆"
         from . import tiktok as _tiktok
         result["tiktok"] = _tiktok.publish(video, caption)
         from . import instagram as _ig
