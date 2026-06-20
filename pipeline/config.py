@@ -63,7 +63,7 @@ VIDEO_H = 1920
 FPS = 30
 
 # Thai voice. ElevenLabs multilingual_v2 supports Thai; Azure has a native voice.
-TTS_PROVIDER = os.environ.get("TTS_PROVIDER", "elevenlabs")  # elevenlabs | azure | fal
+TTS_PROVIDER = os.environ.get("TTS_PROVIDER", "azure")  # azure | elevenlabs | fal
 ELEVENLABS_VOICE_ID = "XrExE9yKIg1WjnnlVkGX"  # "Matilda" – warm female, multilingual
 ELEVENLABS_MODEL = "eleven_multilingual_v2"
 AZURE_VOICE = "th-TH-PremwadeeNeural"
