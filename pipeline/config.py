@@ -41,6 +41,7 @@ def load_env() -> dict[str, str]:
         "GOOGLE_SERVICE_ACCOUNT_JSON", "UPLOAD_POST_API_KEY",
         "AZURE_TTS_KEY", "AZURE_TTS_REGION",
         "AI_GATEWAY_API_KEY", "LLM_PROVIDER", "LLM_MODEL", "OPENAI_API_KEY",
+        "META_APP_ID", "META_APP_SECRET", "INSTAGRAM_ACCESS_TOKEN",
     ]:
         if os.environ.get(k):
             env[k] = os.environ[k]
