@@ -111,18 +111,36 @@ def get_next_product(source: str = "sheets") -> Product | None:
 
 
 def mark_done(product: Product, source: str, publish_result: dict) -> None:
-    if source == "sheets":
-        parts = []
-        ig = publish_result.get("instagram", {})
-        if ig.get("media_id"):
-            parts.append(f"IG:{ig['media_id']}")
-        tt = publish_result.get("tiktok", {})
-        if tt.get("publish_id"):
-            parts.append(f"TT:{tt['publish_id']}")
-        if publish_result.get("telegram"):
-            parts.append("TG:✓")
-        note = " | ".join(parts) if parts else "published"
-        set_status_sheets(product.row_number, STATUS_DONE, note)
+    if source != "sheets":
+        return
+    svc = _sheets_service()
+    sheet_id = ENV["GOOGLE_SHEET_ID"]
+    n = product.row_number
+
+    def _platform_status(res: dict) -> str:
+        if not res:
+            return "—"
+        if res.get("media_id") or res.get("publish_id") or res.get("status") == "uploaded":
+            return "Posted"
+        if res.get("skipped"):
+            return "Skipped"
+        if res.get("error"):
+            return f"Failed"
+        return "—"
+
+    tt_status = _platform_status(publish_result.get("tiktok", {}))
+    ig_status = _platform_status(publish_result.get("instagram", {}))
+
+    updates = [
+        {"range": f"Inbox!H{n}", "values": [[STATUS_DONE]]},
+        {"range": f"Inbox!K{n}", "values": [[tt_status]]},
+        {"range": f"Inbox!L{n}", "values": [[ig_status]]},
+        {"range": f"Inbox!M{n}", "values": [["—"]]},  # Shopee Video is always manual
+    ]
+    svc.spreadsheets().values().batchUpdate(
+        spreadsheetId=sheet_id,
+        body={"valueInputOption": "USER_ENTERED", "data": updates},
+    ).execute()
 
 
 def mark_failed(product: Product, source: str, reason: str) -> None:

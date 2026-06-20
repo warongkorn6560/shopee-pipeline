@@ -112,10 +112,11 @@ UPLOAD_POST_PLATFORMS = ["tiktok", "instagram", "youtube"]
 # ---------------------------------------------------------------------------
 # A Date | B Name | C Price | D Commission% | E Sales | F Affiliate URL
 # G Niche | H Status | I Notes | J Image URL  <-- add this column
-SHEET_RANGE = "Inbox!A:J"
+SHEET_RANGE = "Inbox!A:M"
 COL = {
     "date": 0, "name": 1, "price": 2, "commission": 3, "sales": 4,
     "affiliate_url": 5, "niche": 6, "status": 7, "notes": 8, "image_url": 9,
+    "tiktok": 10, "instagram": 11, "shopee_video": 12,
 }
 STATUS_READY = "Ready"
 STATUS_DONE = "Posted"
