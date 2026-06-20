@@ -46,8 +46,13 @@ def _azure(text: str, out: Path) -> Path:
     region = ENV.get("AZURE_TTS_REGION", "southeastasia")
     url = f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
     ssml = (
-        f"<speak version='1.0' xml:lang='th-TH'>"
-        f"<voice name='{AZURE_VOICE}'><prosody rate='+8%'>{_html.escape(text)}</prosody></voice></speak>"
+        f"<speak version='1.0' xml:lang='th-TH' "
+        f"xmlns:mstts='http://www.w3.org/2001/mstts'>"
+        f"<voice name='{AZURE_VOICE}'>"
+        f"<mstts:express-as style='cheerful' styledegree='1.5'>"
+        f"<prosody rate='-5%' pitch='+2Hz'>{_html.escape(text)}</prosody>"
+        f"</mstts:express-as>"
+        f"</voice></speak>"
     )
     r = requests.post(
         url,
