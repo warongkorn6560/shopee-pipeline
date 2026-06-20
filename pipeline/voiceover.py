@@ -41,12 +41,13 @@ def _elevenlabs(text: str, out: Path) -> Path:
 
 
 def _azure(text: str, out: Path) -> Path:
+    import html as _html
     key = ENV["AZURE_TTS_KEY"]
     region = ENV.get("AZURE_TTS_REGION", "southeastasia")
     url = f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
     ssml = (
         f"<speak version='1.0' xml:lang='th-TH'>"
-        f"<voice name='{AZURE_VOICE}'><prosody rate='+8%'>{text}</prosody></voice></speak>"
+        f"<voice name='{AZURE_VOICE}'><prosody rate='+8%'>{_html.escape(text)}</prosody></voice></speak>"
     )
     r = requests.post(
         url,
