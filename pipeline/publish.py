@@ -55,7 +55,8 @@ def send_to_telegram(video: Path, plan, product) -> bool:
         requests.post(_telegram("sendMessage"),
                       data={"chat_id": ENV["TELEGRAM_CHAT_ID"],
                             "text": cap + f"\n\n(⚠️ video send failed: {r.text[:200]})"})
-    else:
+    elif len(cap) > 1000:
+        # only send a follow-up if caption was truncated on the video
         requests.post(_telegram("sendMessage"),
                       data={"chat_id": ENV["TELEGRAM_CHAT_ID"], "text": cap})
     return ok
