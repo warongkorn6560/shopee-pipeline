@@ -114,7 +114,7 @@ def run_once(source: str = "sheets", dry_run: bool = False, offline: bool = Fals
         if spent > MONTHLY_BUDGET_USD * 0.9:
             print(f"  ⚠ Near monthly budget (${spent:.2f}/${MONTHLY_BUDGET_USD:.0f}).")
         if source == "sheets":
-            products.mark_done(product, source, str(final))
+            products.mark_done(product, source, res)
         return 0
 
     except Exception as e:

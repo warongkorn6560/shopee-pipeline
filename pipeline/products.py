@@ -110,9 +110,19 @@ def get_next_product(source: str = "sheets") -> Product | None:
     return next_ready_from_csv() if source == "csv" else next_ready_from_sheets()
 
 
-def mark_done(product: Product, source: str, url: str) -> None:
+def mark_done(product: Product, source: str, publish_result: dict) -> None:
     if source == "sheets":
-        set_status_sheets(product.row_number, STATUS_DONE, f"MP4: {url}")
+        parts = []
+        ig = publish_result.get("instagram", {})
+        if ig.get("media_id"):
+            parts.append(f"IG:{ig['media_id']}")
+        tt = publish_result.get("tiktok", {})
+        if tt.get("publish_id"):
+            parts.append(f"TT:{tt['publish_id']}")
+        if publish_result.get("telegram"):
+            parts.append("TG:✓")
+        note = " | ".join(parts) if parts else "published"
+        set_status_sheets(product.row_number, STATUS_DONE, note)
 
 
 def mark_failed(product: Product, source: str, reason: str) -> None:
