@@ -44,6 +44,9 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: scraper/service-account.json
           UPLOAD_POST_API_KEY: ${{ secrets.UPLOAD_POST_API_KEY }}
           UPLOAD_POST_USER: ${{ secrets.UPLOAD_POST_USER }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
           # Tunables (override defaults in config.py)
           PUBLISH_MODE: ${{ vars.PUBLISH_MODE || 'auto' }}
           AI_CLIPS: ${{ vars.AI_CLIPS || '2' }}

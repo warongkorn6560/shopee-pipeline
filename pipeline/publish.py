@@ -90,5 +90,8 @@ def publish(video: Path, plan, product, mode: str | None = None) -> dict:
     mode = mode or PUBLISH_MODE
     result = {"telegram": send_to_telegram(video, plan, product)}
     if mode == "auto":
-        result["auto_post"] = auto_post(video, plan, product)
+        result["upload_post"] = auto_post(video, plan, product)
+        from . import tiktok as _tiktok
+        title = plan.caption + " " + " ".join(plan.hashtags)
+        result["tiktok"] = _tiktok.publish(video, title)
     return result
