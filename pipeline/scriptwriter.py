@@ -70,13 +70,14 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000) -> str:
             raise
     raise RuntimeError(f"AI Gateway failed after retries: {last}")
 
-SYSTEM = """You are a top-performing Thai TikTok affiliate scriptwriter and creative director \
-for Shopee. You write high-converting short-form video ads (UGC style) that make viewers buy. \
-You understand hooks, problem-agitation, benefit-stacking, social proof, and urgency CTAs. \
-You always reply with raw JSON only — no markdown, no prose, no code fences."""
+SYSTEM = """You are a viral Thai TikTok/Instagram Reels creator who specialises in storytelling-style \
+affiliate content. Your videos rack up millions of views because you DON'T make ads — you tell \
+short, funny, relatable stories where the product is the hero that saves the day. \
+You know every Thai viral format: "มีเพื่อนคนนึง...", "POV:", "เมื่อกี้เพิ่งรู้ว่า...", \
+dramatic before-and-after, comedic over-reaction. You reply with raw JSON only."""
 
-PROMPT_TEMPLATE = """Create a complete plan for a {clip_seconds}-second-per-clip vertical (9:16) \
-TikTok video that SELLS this product. The goal is conversions, not views.
+PROMPT_TEMPLATE = """Create a VIRAL STORY-FORMAT plan for a {clip_seconds}-second-per-clip vertical (9:16) \
+TikTok/Reels video about this product. Goal: maximum shares & comments — NOT a direct ad feel.
 
 PRODUCT
 - Name: {name}
@@ -86,30 +87,41 @@ PRODUCT
 - Niche: {niche}
 - Notes: {notes}
 
+MANDATORY STORY STRUCTURE for the script:
+1. OPEN mid-story with a funny/relatable situation (Thai comedy, NOT a product intro)
+2. ESCALATE the problem with exaggeration or a comedic twist
+3. PRODUCT enters as the unexpected hero (reveal, not pitch)
+4. FUNNY PAYOFF — character's over-the-top happy/shocked reaction
+5. SOCIAL PROOF + SOFT CTA ending EXACTLY with: กดลิงก์ใต้คลิปเลย
+
+Viral Thai formats to draw from (pick the best fit for this product):
+- "มีเพื่อนคนนึง..." (I have this one friend who...) — 3rd-person comedy distance
+- "POV: ..." — viewer IS the character, relatable nightmare scenario
+- "เมื่อกี้เพิ่งรู้ว่า..." (I just found out that...) — discovery/revelation shock
+- Dramatic contrast: chaos without product vs pure bliss with product
+- "ทำไมไม่มีใครบอกฉัน" (why didn't anyone tell me about this) — FOMO guilt trip
+
 Return a JSON object with EXACTLY these keys:
 {{
-  "script": "Full Thai voiceover, 55-75 words, spoken in ~25-30 seconds. Structure: HOOK (pattern-interrupt problem) -> AGITATE -> PRODUCT as the fix -> 2 concrete BENEFITS -> SOCIAL PROOF (use the sales number) -> URGENT CTA ending EXACTLY with: กดลิงก์ใต้คลิปเลย. No emojis in the script.",
-  "hook_caption": "On-screen Thai text for the first 3 seconds. <= 6 words. Punchy.",
-  "benefit_captions": ["short Thai on-screen caption 1 (<=5 words)", "short Thai on-screen caption 2 (<=5 words)"],
+  "script": "Full Thai voiceover, 55-75 words, spoken in ~25-30 seconds. Must be a STORY not a product pitch. Start mid-situation (funny/relatable). Include a comedic beat. Product name appears only ONCE. No emojis. End EXACTLY with: กดลิงก์ใต้คลิปเลย",
+  "hook_caption": "On-screen Thai text for the first 3 seconds. <=6 words. The comedy setup — make the viewer NEED to see what happens next.",
+  "benefit_captions": ["funny/punchy Thai caption 1 that fits the story moment (<=5 words)", "payoff/reaction Thai caption 2 (<=5 words)"],
   "clip_prompts": [
     {clip_prompt_spec}
   ],
-  "caption": "TikTok caption in Thai with 1-2 emojis, mentions the price, creates urgency.",
-  "hashtags": ["5 relevant Thai/English hashtags, each starting with #"],
-  "hook_alt_1": "An alternative opening hook line in Thai.",
-  "hook_alt_2": "Another alternative opening hook line in Thai."
+  "caption": "TikTok caption written like a person sharing a funny personal story — Thai, 1-2 emojis, casual tone, price sneaked in naturally, ends with a question to bait comments.",
+  "hashtags": ["5 Thai/English hashtags, each starting with #"],
+  "hook_alt_1": "Alternative funny story-opening hook in Thai (different format from the main).",
+  "hook_alt_2": "Another alternative, even more absurd/dramatic opening hook in Thai."
 }}
 
-clip_prompts rules (THIS IS CRITICAL):
-- Exactly {n_clips} prompts, each in ENGLISH (the video model needs English).
-- The product image is the FIRST FRAME, so describe MOTION and a HUMAN naturally USING the product.
-- A real young Thai person, authentic UGC handheld style, warm natural home lighting, vertical framing.
-- Clip 1 = the HOOK moment (excitedly revealing or showing off the product).
-- Clip 2 = the DEMO (hands using the product, showing the key benefit clearly).
-- Keep each prompt one vivid sentence. No text overlays mentioned. Realistic, not cartoonish.
-- IMPORTANT: keep prompts POSITIVE, calm and brand-safe — show happy, gentle scenes.
-  Avoid words like frantic, frustrated, broken, mess, distress, fight, danger; avoid
-  anything a content filter could flag. Focus on cheerful product use.
+clip_prompts rules (CRITICAL):
+- Exactly {n_clips} prompts, each in ENGLISH.
+- The product image is the FIRST FRAME — describe a HUMAN in a story moment with the product naturally in scene.
+- A real young Thai person (20s), authentic UGC handheld selfie style, warm natural home lighting, vertical 9:16.
+- Clip 1 = the funny STORY moment (character living the relatable problem OR the surprised product reveal).
+- Clip 2 = the PAYOFF (character's happy, relieved, or over-the-top delighted reaction with the product).
+- One vivid sentence each. No text overlays. Realistic, cheerful, brand-safe — no frustration/distress/danger words.
 
 Output raw JSON only."""
 
