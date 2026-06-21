@@ -40,17 +40,28 @@ def _elevenlabs(text: str, out: Path) -> Path:
     return out
 
 
+_AZURE_MAI_VOICES = [
+    ("th-TH-Krit:MAI-Voice-2",      "excited"),
+    ("th-TH-Krit:MAI-Voice-2",      "friendlycheerful"),
+    ("th-TH-Nattapong:MAI-Voice-2", "excited"),
+    ("th-TH-Nattapong:MAI-Voice-2", "friendlycheerful"),
+]
+
+
 def _azure(text: str, out: Path) -> Path:
     import html as _html
+    import random
     key = ENV["AZURE_TTS_KEY"]
     region = ENV.get("AZURE_TTS_REGION", "southeastasia")
     url = f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
+    voice, style = random.choice(_AZURE_MAI_VOICES)
+    print(f"  [tts] azure voice: {voice} / {style}")
     ssml = (
         f"<speak version='1.0' xml:lang='th-TH' "
         f"xmlns:mstts='http://www.w3.org/2001/mstts'>"
-        f"<voice name='{AZURE_VOICE}'>"
-        f"<mstts:express-as style='cheerful' styledegree='1.5'>"
-        f"<prosody rate='-5%' pitch='+2Hz'>{_html.escape(text)}</prosody>"
+        f"<voice name='{voice}'>"
+        f"<mstts:express-as style='{style}' styledegree='1.8'>"
+        f"<prosody rate='-5%'>{_html.escape(text)}</prosody>"
         f"</mstts:express-as>"
         f"</voice></speak>"
     )
