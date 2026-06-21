@@ -77,25 +77,30 @@ AZURE_VOICE = "th-TH-PremwadeeNeural"
 #   kling-video/v2.5-turbo/pro/image-to-video $0.07/s  cheap, photoreal, but won't add a human
 #   wan/v2.5/image-to-video                   $0.05/s  cheapest
 # Default = Veo 4s hero clip: reliably composes a real person using the product.
+# Story-scene pipeline: Flux text-to-image → Kling image-to-video
+# 4 story scenes × 5s × $0.07 = $1.40/video
+FAL_FLUX_MODEL = "fal-ai/flux/dev"
+FAL_KLING_MODEL = "fal-ai/kling-video/v2.5-turbo/pro/image-to-video"
+FAL_KLING_PRICE_PER_SEC = float(os.environ.get("FAL_KLING_PRICE_PER_SEC", "0.07"))
+STORY_SCENES = int(os.environ.get("STORY_SCENES", "4"))
+STORY_CLIP_SECONDS = int(os.environ.get("STORY_CLIP_SECONDS", "5"))
+
+# Legacy i2v (kept for backwards compat / override)
 FAL_I2V_MODEL = os.environ.get("FAL_I2V_MODEL", "fal-ai/veo3/image-to-video")
 FAL_I2V_PRICE_PER_SEC = float(os.environ.get("FAL_I2V_PRICE_PER_SEC", "0.20"))
-
-# How many AI motion clips per video, and each clip's length (seconds).
-# Veo: 1 hero clip x 4s @ $0.20 = $0.80/video -> ~$24/mo for 30 videos. Fits $30.
-# (Kling alt: AI_CLIPS=2, 5s, $0.07 -> ~$21/mo but no reliable human.)
 AI_CLIPS = int(os.environ.get("AI_CLIPS", "1"))
 AI_CLIP_SECONDS = int(os.environ.get("AI_CLIP_SECONDS", "4"))
 
 # Hard per-video spend ceiling. Orchestrator aborts before generating if exceeded.
-COST_CAP_USD = float(os.environ.get("COST_CAP_USD", "1.20"))
+COST_CAP_USD = float(os.environ.get("COST_CAP_USD", "2.00"))
 
 # Monthly budget tracking (informational; written to output/spend_log.json)
 MONTHLY_BUDGET_USD = float(os.environ.get("MONTHLY_BUDGET_USD", "30"))
 
 
 def estimate_video_cost() -> float:
-    """Estimate fal.ai spend for one video (the only per-video variable cost)."""
-    return AI_CLIPS * AI_CLIP_SECONDS * FAL_I2V_PRICE_PER_SEC
+    """Estimate fal.ai spend for one video: 4 story scenes × 5s × $0.07."""
+    return STORY_SCENES * STORY_CLIP_SECONDS * FAL_KLING_PRICE_PER_SEC
 
 
 # ---------------------------------------------------------------------------
@@ -143,10 +148,11 @@ class Product:
 @dataclass
 class Scene:
     """One segment of the video timeline."""
-    kind: str               # "ai" | "kenburns" | "cta"
+    kind: str               # "story" | "ai" | "kenburns" | "cta"
     duration: float
     caption: str = ""
-    i2v_prompt: str = ""    # for kind == "ai"
+    i2v_prompt: str = ""    # motion prompt for Kling animation
+    flux_prompt: str = ""   # image-generation prompt for Flux (kind=="story")
     image_url: str = ""     # source image for ai/kenburns
     bg_color: str = ""      # for cta
 

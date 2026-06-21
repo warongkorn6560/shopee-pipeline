@@ -18,7 +18,7 @@ from pathlib import Path
 
 import requests
 
-from .config import ENV, FAL_I2V_MODEL, VIDEO_H, VIDEO_W, WORK_DIR
+from .config import ENV, FAL_FLUX_MODEL, FAL_I2V_MODEL, FAL_KLING_MODEL, VIDEO_H, VIDEO_W, WORK_DIR
 
 _BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -102,9 +102,78 @@ def generate_clip(prompt: str, image_url: str, seconds: int, out_path: Path) -> 
     return out_path
 
 
-def generate_clips(plan, work_dir: Path = WORK_DIR) -> dict[int, Path]:
-    """Generate every 'ai' scene's clip. Returns {scene_index: mp4_path}."""
+def generate_story_scene(flux_prompt: str, kling_prompt: str, seconds: int, out_path: Path) -> Path:
+    """Flux text→image, then Kling image→video. Returns the MP4 path."""
+    _ensure_fal_key()
+    import fal_client
+
+    # 1) Generate scene image with Flux
+    print(f"    [flux] generating image…")
+    flux_result = fal_client.subscribe(FAL_FLUX_MODEL, arguments={
+        "prompt": flux_prompt,
+        "image_size": "portrait_4_3",
+        "num_inference_steps": 28,
+        "guidance_scale": 3.5,
+        "num_images": 1,
+    })
+    img_url = flux_result["images"][0]["url"]
+
+    # 2) Download image locally and re-upload to fal storage
+    img_local = WORK_DIR / f"flux_{out_path.stem}.jpg"
+    img_local.write_bytes(requests.get(img_url, timeout=60).content)
+    fal_img_url = _upload_to_fal(img_local)
+
+    # 3) Animate with Kling
+    print(f"    [kling] animating {seconds}s…")
+    kling_result = fal_client.subscribe(FAL_KLING_MODEL, arguments={
+        "image_url": fal_img_url,
+        "prompt": kling_prompt,
+        "duration": "10" if seconds > 7 else "5",
+        "aspect_ratio": "9:16",
+    })
+    video_url = (kling_result or {}).get("video", {}).get("url")
+    if not video_url:
+        raise RuntimeError(f"Kling returned no video url. Raw: {str(kling_result)[:300]}")
+
+    r = requests.get(video_url, timeout=180)
+    r.raise_for_status()
+    out_path.write_bytes(r.content)
+    return out_path
+
+
+def generate_story_clips(plan, work_dir: Path = WORK_DIR) -> dict[int, Path]:
+    """Generate all 'story' scenes in parallel (Flux→Kling). Returns {scene_index: mp4_path}."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     work_dir.mkdir(parents=True, exist_ok=True)
+    story_scenes = [(i, s) for i, s in enumerate(plan.scenes) if s.kind == "story"]
+
+    clips: dict[int, Path] = {}
+
+    def _gen(i_scene):
+        i, scene = i_scene
+        out = work_dir / f"clip_{i}.mp4"
+        print(f"  [video_gen] scene {i}: Flux→Kling {int(scene.duration)}s…")
+        generate_story_scene(scene.flux_prompt, scene.i2v_prompt, int(scene.duration), out)
+        return i, out
+
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futures = {ex.submit(_gen, x): x[0] for x in story_scenes}
+        for fut in as_completed(futures):
+            i, path = fut.result()
+            clips[i] = path
+            print(f"  [video_gen] scene {i} done → {path.name}")
+
+    return clips
+
+
+def generate_clips(plan, work_dir: Path = WORK_DIR) -> dict[int, Path]:
+    """Generate clips for all scenes that need AI generation."""
+    work_dir.mkdir(parents=True, exist_ok=True)
+    # Story-style pipeline (new default)
+    if any(s.kind == "story" for s in plan.scenes):
+        return generate_story_clips(plan, work_dir)
+    # Legacy i2v from product image
     clips: dict[int, Path] = {}
     for i, scene in enumerate(plan.scenes):
         if scene.kind != "ai":

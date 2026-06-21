@@ -138,7 +138,7 @@ def compose(plan, clips: dict[int, Path], voice: Path,
     for i, (scene, dur) in enumerate(zip(plan.scenes, durs)):
         out = WORK_DIR / f"scene_{i}.mp4"
         tag = str(i)
-        if scene.kind == "ai" and i in clips:
+        if scene.kind in ("ai", "story") and i in clips:
             _render_ai(clips[i], dur, scene.caption, tag, out)
         elif scene.kind == "kenburns" and scene.image_url:
             img = WORK_DIR / "product_src.jpg"
