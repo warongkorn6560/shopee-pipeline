@@ -29,14 +29,11 @@ def caption_block(plan, product) -> str:
     tags = " ".join(plan.hashtags)
     return (
         f"✅ NEW VIDEO READY\n\n"
-        f"📦 {product.name}\n"
-        f"💰 {product.price_thb} THB | commission {product.commission_pct}%\n\n"
-        f"📝 Caption:\n{plan.caption}\n\n"
-        f"#️⃣ {tags}\n\n"
-        f"🔗 Affiliate link (update IG + TikTok bio to this):\n{product.affiliate_url}\n\n"
-        f"📋 Caption to copy:\n{plan.caption} {' '.join(plan.hashtags)}\n🔗 ดูลิงก์ในโปรไฟล์ได้เลย 👆\n\n"
-        f"🔁 Backup hooks:\n1) {plan.hook_alt_1}\n2) {plan.hook_alt_2}\n\n"
-        f"👉 Steps: 1) Update IG & TikTok bio link → 2) Post video → 3) Upload to Shopee Video app."
+        f"{plan.caption}\n"
+        f"กดลิงค์ในโปรไฟล์เลย 👆\n"
+        f"{tags}\n\n"
+        f"📦 {product.name[:80]}\n"
+        f"🔗 {product.affiliate_url}"
     )
 
 
