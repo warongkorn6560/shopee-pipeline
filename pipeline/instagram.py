@@ -90,16 +90,16 @@ def _ig_user_id(token: str) -> str:
 
 
 def _host_video(video: Path) -> str:
-    """Upload video to catbox.moe and return a public HTTPS URL."""
+    """Upload video to litterbox.catbox.moe (72h) and return a public HTTPS URL."""
     with video.open("rb") as f:
         r = requests.post(
-            "https://catbox.moe/user/api.php",
-            data={"reqtype": "fileupload"},
+            "https://litterbox.catbox.moe/resources/internals/api.php",
+            data={"reqtype": "fileupload", "time": "72h"},
             files={"fileToUpload": (video.name, f, "video/mp4")},
             timeout=120,
         )
     if r.status_code != 200 or not r.text.startswith("https://"):
-        raise RuntimeError(f"Video upload to catbox.moe failed: {r.status_code} {r.text[:200]}")
+        raise RuntimeError(f"Video upload to litterbox failed: {r.status_code} {r.text[:200]}")
     return r.text.strip()
 
 
