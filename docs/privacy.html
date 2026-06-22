@@ -7,19 +7,45 @@
   <style>
     body { font-family: -apple-system, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #333; }
     h1 { color: #ff5722; }
+    h2 { color: #444; margin-top: 2em; }
   </style>
 </head>
 <body>
   <h1>Privacy Policy — ShopeePipeline</h1>
-  <p><strong>Last updated: 2026-06-20</strong></p>
-  <p>ShopeePipeline is a personal automation tool that generates and posts affiliate product videos to TikTok.</p>
-  <h2>Data We Collect</h2>
-  <p>TikTok OAuth tokens (access token and refresh token) to authenticate with the Content Posting API. No personal data from TikTok users is collected, stored, or shared.</p>
-  <h2>How We Use Data</h2>
-  <p>OAuth tokens are stored as encrypted GitHub Actions secrets and are used solely to post videos to the authorised TikTok account. Tokens are never shared with third parties.</p>
+  <p><strong>Last updated: 2026-06-22</strong></p>
+
+  <p>ShopeePipeline is an affiliate marketing automation platform that generates AI-powered short-form product videos and publishes them to social media platforms including TikTok, Instagram, and Telegram on behalf of the authorized account owner.</p>
+
+  <h2>Information We Collect</h2>
+  <ul>
+    <li><strong>TikTok OAuth tokens</strong> (access token and refresh token) obtained via TikTok's official OAuth 2.0 authorization flow, used solely to publish videos to the authorized TikTok account via the Content Posting API.</li>
+    <li><strong>TikTok User ID</strong> obtained from the user info API, used only to route API calls to the correct account.</li>
+    <li>No data from TikTok followers, viewers, or third-party TikTok users is collected, processed, or stored.</li>
+  </ul>
+
+  <h2>How We Use TikTok Data</h2>
+  <ul>
+    <li>OAuth tokens are stored as encrypted secrets in GitHub Actions and are used exclusively to post AI-generated affiliate product videos to the authorized TikTok account.</li>
+    <li>We use the <code>video.publish</code> scope to upload and publish videos, and <code>user.info.basic</code> to verify the authenticated account.</li>
+    <li>No TikTok data is shared with third parties, sold, or used for any purpose beyond publishing videos for the account owner.</li>
+    <li>Videos published via this platform are AI-generated promotional content for Shopee affiliate products, compliant with TikTok's Community Guidelines and Advertising Policies.</li>
+  </ul>
+
+  <h2>Data Storage and Security</h2>
+  <ul>
+    <li>OAuth tokens are stored as encrypted GitHub Actions secrets and are never logged, displayed, or transmitted outside of GitHub's secure secret storage.</li>
+    <li>Tokens are rotated automatically and can be revoked at any time by the account owner.</li>
+    <li>No personal data is stored in databases, files, or third-party services.</li>
+  </ul>
+
   <h2>Data Retention</h2>
-  <p>Tokens are retained only as long as the TikTok integration is active. You can revoke access at any time from TikTok's Settings → Security → Connected apps.</p>
-  <h2>Contact</h2>
-  <p>For privacy concerns, contact: <a href="mailto:warongkorn6560@gmail.com">warongkorn6560@gmail.com</a></p>
+  <p>OAuth tokens are retained only while the TikTok integration is active. You can revoke access at any time from <strong>TikTok Settings → Security → Connected apps → ShopeePipeline → Remove access</strong>.</p>
+
+  <h2>Your Rights</h2>
+  <p>As the sole user of this platform, you have full control over your data. You may revoke API access at any time through TikTok's connected apps settings. For any privacy concerns, contact:</p>
+  <p><a href="mailto:warongkorn6560@gmail.com">warongkorn6560@gmail.com</a></p>
+
+  <h2>Changes to This Policy</h2>
+  <p>This privacy policy may be updated. The "Last updated" date at the top reflects the most recent revision.</p>
 </body>
 </html>
