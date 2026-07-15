@@ -3,7 +3,6 @@ shopee-pipeline-*.json
 existing-blueprint.json
 current-blueprint.json
 scraper/service-account.json
-scraper/products.csv
 __pycache__/
 *.pyc
 .DS_Store
