@@ -111,18 +111,20 @@ def product_card(out: Path, *, name: str, price: str) -> Path:
     """Shopee-orange card with the product name and price (no-image fallback)."""
     from PIL import ImageDraw
 
+    # Name + price live in the top third; the middle and bottom stay clear for
+    # the hook (centered) and beat captions (lower third).
     img = _gradient(SHOPEE_ORANGE, "#B8321A").convert("RGBA")
     draw = ImageDraw.Draw(img)
-    font, lines, size = _fit(name, 78, VIDEO_W - 160, 4, draw)
-    y = int(VIDEO_H * 0.30)
+    font, lines, size = _fit(name, 64, VIDEO_W - 160, 3, draw)
+    y = int(VIDEO_H * 0.10)
     for ln in lines:
         w = draw.textlength(ln, font=font)
-        draw.text(((VIDEO_W - w) / 2, y), ln, font=font, fill=(255, 255, 255, 255))
+        draw.text(((VIDEO_W - w) / 2, y), ln, font=font, fill=(255, 255, 255, 235))
         y += int(size * 1.35)
     if price:
-        pfont = _font(132)
+        pfont = _font(110)
         label = f"฿{price}"
         w = draw.textlength(label, font=pfont)
-        draw.text(((VIDEO_W - w) / 2, y + 60), label, font=pfont, fill=(255, 241, 214, 255))
+        draw.text(((VIDEO_W - w) / 2, y + 30), label, font=pfont, fill=(255, 241, 214, 255))
     img.convert("RGB").save(out, quality=92)
     return out
