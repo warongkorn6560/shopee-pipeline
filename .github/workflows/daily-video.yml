@@ -3,7 +3,11 @@ name: Daily Shopee AI video
 on:
   schedule:
     - cron: "0 2 * * *"   # 09:00 Asia/Bangkok, once per day
-  workflow_dispatch:        # manual "Run workflow" button
+  workflow_dispatch:        # manual "Run workflow" button / dashboard
+
+concurrency:
+  group: shopee-video
+  cancel-in-progress: false
 
 jobs:
   make-video:
@@ -20,24 +24,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
       - name: Python deps
         run: pip install -r requirements.txt
 
       - name: Write Google service account
-        run: printf '%s' '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > scraper/service-account.json
-
-      - name: Generate + publish one video
         env:
-          FAL_KEY: ${{ secrets.FAL_KEY }}
+          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: printf '%s' "$SA_JSON" > scraper/service-account.json
+
+      - name: Generate + deliver one video
+        env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gateway' }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'google/gemini-2.5-flash-lite' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          TTS_PROVIDER: azure
-          AZURE_TTS_KEY: ${{ secrets.AZURE_TTS_KEY }}
-          AZURE_TTS_REGION: southeastasia
+          TTS_PROVIDER: elevenlabs
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
@@ -50,19 +54,19 @@ jobs:
           META_APP_ID: ${{ secrets.META_APP_ID }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
-          # Tunables (override defaults in config.py)
-          PUBLISH_MODE: ${{ vars.PUBLISH_MODE || 'auto' }}
-          AI_CLIPS: ${{ vars.AI_CLIPS || '2' }}
-          FAL_I2V_MODEL: ${{ vars.FAL_I2V_MODEL || 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video' }}
-          FAL_I2V_PRICE_PER_SEC: '0.07'
-          COST_CAP_USD: '2.00'
+          # Renderer: local = product photo + FFmpeg ($0). fal = Flux/Kling (~$1.40, needs fal credits)
+          VIDEO_PROVIDER: ${{ vars.VIDEO_PROVIDER || 'local' }}
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          # review = Telegram only (safe default). auto = also post to connected socials.
+          PUBLISH_MODE: ${{ vars.PUBLISH_MODE || 'review' }}
+          COST_CAP_USD: "2.00"
         run: python -m pipeline.run --source sheets
 
-      - name: Upload artifact (the MP4 + spend log)
+      - name: Upload artifact (MP4 + spend log)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: video-output
+          name: shopee-video
           path: |
             output/*.mp4
             output/spend_log.json

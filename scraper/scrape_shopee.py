@@ -63,6 +63,7 @@ class Product:
     affiliate_url: str
     niche: str
     notes: str
+    image_url: str = ""
 
     def to_row(self) -> list[str]:
         today = dt.date.today().isoformat()
@@ -76,6 +77,7 @@ class Product:
             self.niche,
             "New",
             self.notes,
+            self.image_url,
         ]
 
 
@@ -99,6 +101,7 @@ def load_from_csv(path: Path, niche_default: str) -> list[Product]:
                     affiliate_url=row["affiliate_url"].strip(),
                     niche=row.get("niche", "").strip() or niche_default,
                     notes=row.get("notes", "").strip(),
+                    image_url=row.get("image_url", "").strip(),
                 )
             )
     return items
@@ -149,6 +152,7 @@ def parse_item(raw: dict, niche: str) -> Product | None:
         return None
 
     affiliate_url = f"https://shopee.co.th/product/{shopid}/{itemid}"
+    image = item.get("image") or ""
     return Product(
         name=name.strip(),
         price_thb=price_thb,
@@ -157,6 +161,7 @@ def parse_item(raw: dict, niche: str) -> Product | None:
         affiliate_url=affiliate_url,
         niche=niche,
         notes=f"shopid={shopid} itemid={itemid}",
+        image_url=f"https://down-th.img.susercontent.com/file/{image}" if image else "",
     )
 
 
@@ -208,13 +213,23 @@ def push_via_sheets(products: list[Product], env: dict[str, str]) -> None:
         sa_path, scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
     svc = build("sheets", "v4", credentials=creds)
+    # Skip products already in the Inbox (same affiliate URL or same name) so
+    # a daily run never piles up duplicate rows.
+    existing = svc.spreadsheets().values().get(
+        spreadsheetId=sheet_id, range="Inbox!B:F").execute().get("values", [])
+    seen = {c.strip() for row in existing for c in (row[0:1] + row[4:5]) if c.strip()}
+    fresh = [p for p in products if p.affiliate_url not in seen and p.name not in seen]
+    if not fresh:
+        print(f"  -> sheets: all {len(products)} product(s) already in the Inbox; nothing to add")
+        return
+    products = fresh
     body = {"values": [p.to_row() for p in products]}
     resp = (
         svc.spreadsheets()
         .values()
         .append(
             spreadsheetId=sheet_id,
-            range="Inbox!A:I",
+            range="Inbox!A:J",
             valueInputOption="USER_ENTERED",
             insertDataOption="INSERT_ROWS",
             body=body,

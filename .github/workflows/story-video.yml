@@ -1,0 +1,88 @@
+name: Daily story video
+
+on:
+  schedule:
+    - cron: "0 12 * * *"   # 19:00 Asia/Bangkok — evening is prime time on Facebook
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "One-off topic (leave empty to use the Stories queue in Google Sheets)"
+        required: false
+        default: ""
+
+concurrency:
+  group: story-video
+  cancel-in-progress: false
+
+jobs:
+  make-story:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System deps (ffmpeg + Thai shaping)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libraqm0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Python deps
+        run: pip install -r requirements.txt
+
+      - name: Write Google service account
+        env:
+          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: printf '%s' "$SA_JSON" > scraper/service-account.json
+
+      - name: Generate + deliver one story
+        env:
+          TOPIC: ${{ inputs.topic }}
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gateway' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'google/gemini-2.5-flash-lite' }}
+          STORY_LLM_MODEL: ${{ vars.STORY_LLM_MODEL || 'openai/gpt-4.1-mini' }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          TTS_PROVIDER: elevenlabs
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: scraper/service-account.json
+          FACEBOOK_PAGE_ID: ${{ secrets.FACEBOOK_PAGE_ID }}
+          FACEBOOK_PAGE_TOKEN: ${{ secrets.FACEBOOK_PAGE_TOKEN }}
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+          # review = Telegram only (safe default). auto = also post to Facebook/TikTok/IG.
+          PUBLISH_MODE: ${{ vars.STORY_PUBLISH_MODE || 'review' }}
+          STORY_SERIES_NAME: ${{ vars.STORY_SERIES_NAME }}
+          STORY_NICHE: ${{ vars.STORY_NICHE }}
+          STORY_IMAGE_PROVIDER: ${{ vars.STORY_IMAGE_PROVIDER || 'auto' }}
+          STORY_AUTO_TOPIC: ${{ vars.STORY_AUTO_TOPIC || 'on' }}
+          STORY_VOICE_ID: ${{ vars.STORY_VOICE_ID }}
+          COST_CAP_USD: "0.50"
+        run: |
+          if [ -n "$TOPIC" ]; then
+            python -m pipeline.story --topic "$TOPIC"
+          else
+            python -m pipeline.story
+          fi
+
+      - name: Upload artifact (MP4 + plan)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-video
+          path: |
+            output/story_*.mp4
+            output/story_latest.json
+            output/spend_log.json
+          retention-days: 7
+          if-no-files-found: ignore

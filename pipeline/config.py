@@ -1,12 +1,16 @@
 """
-Central configuration for the Shopee affiliate AI-video pipeline.
+Central configuration for both video flows.
 
-Everything tunable lives here: which AI model, video length, cost caps, voice,
-brand colors. Secrets come from .env (never hard-code them).
+  Flow A  Shopee affiliate product videos   (python -m pipeline.run)
+  Flow B  Thai storytelling / edutainment   (python -m pipeline.story)
 
-Cost philosophy: the orchestrator estimates the fal.ai spend BEFORE generating
-and aborts if a single video would exceed COST_CAP_USD. This keeps you safely
-under the monthly budget no matter what.
+Tunables resolve in this order: real environment (GitHub Actions vars/secrets)
+→ local .env → default. Secrets only ever come from the environment or .env.
+
+Cost philosophy: every run estimates its paid-API spend before generating and
+aborts if it would exceed COST_CAP_USD. The default providers (local FFmpeg
+renderer, ElevenLabs prepaid credits, free-tier LLM, Wikimedia images) cost $0
+per video.
 """
 
 from __future__ import annotations
@@ -21,7 +25,24 @@ WORK_DIR = ROOT / "work"      # per-run scratch (clips, voice, frames)
 OUTPUT_DIR = ROOT / "output"  # final MP4s
 ASSETS = ROOT / "assets"
 FONT_PATH = ASSETS / "fonts" / "Sarabun-Bold.ttf"
+FONT_REGULAR_PATH = ASSETS / "fonts" / "Sarabun-Regular.ttf"
 MUSIC_DIR = ASSETS / "music"
+
+_ENV_KEYS = (
+    # secrets
+    "FAL_KEY", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "AI_GATEWAY_API_KEY",
+    "OPENAI_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "GOOGLE_SHEET_ID",
+    "GOOGLE_SERVICE_ACCOUNT_JSON", "UPLOAD_POST_API_KEY", "UPLOAD_POST_USER",
+    "AZURE_TTS_KEY", "AZURE_TTS_REGION", "META_APP_ID", "META_APP_SECRET",
+    "INSTAGRAM_ACCESS_TOKEN", "TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET",
+    "TIKTOK_REFRESH_TOKEN", "FACEBOOK_PAGE_ID", "FACEBOOK_PAGE_TOKEN",
+    # tunables
+    "LLM_PROVIDER", "LLM_MODEL", "LLM_BASE_URL", "TTS_PROVIDER", "PUBLISH_MODE",
+    "VIDEO_PROVIDER", "COST_CAP_USD", "MONTHLY_BUDGET_USD", "META_GRAPH_VERSION",
+    "STORY_NICHE", "STORY_SERIES_NAME", "STORY_IMAGE_PROVIDER", "STORY_IMAGE_MODEL",
+    "STORY_AUTO_TOPIC", "STORY_VOICE_ID", "STORY_LLM_MODEL", "STORY_MAX_AI_IMAGES",
+    "GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
+)
 
 
 def load_env() -> dict[str, str]:
@@ -34,21 +55,18 @@ def load_env() -> dict[str, str]:
                 continue
             k, v = line.split("=", 1)
             env[k.strip()] = v.strip()
-    # Real env vars (e.g. from GitHub Actions secrets) win over .env
-    for k in list(env) + [
-        "FAL_KEY", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY",
-        "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "GOOGLE_SHEET_ID",
-        "GOOGLE_SERVICE_ACCOUNT_JSON", "UPLOAD_POST_API_KEY",
-        "AZURE_TTS_KEY", "AZURE_TTS_REGION",
-        "AI_GATEWAY_API_KEY", "LLM_PROVIDER", "LLM_MODEL", "OPENAI_API_KEY",
-        "META_APP_ID", "META_APP_SECRET", "INSTAGRAM_ACCESS_TOKEN",
-    ]:
+    # Real env vars (GitHub Actions secrets/vars) win over .env
+    for k in set(env) | set(_ENV_KEYS):
         if os.environ.get(k):
             env[k] = os.environ[k]
     return env
 
 
 ENV = load_env()
+
+
+def _get(name: str, default: str) -> str:
+    return ENV.get(name) or default
 
 
 # ---------------------------------------------------------------------------
@@ -62,61 +80,61 @@ VIDEO_W = 1080
 VIDEO_H = 1920
 FPS = 30
 
-# Thai voice. ElevenLabs multilingual_v2 supports Thai; Azure has a native voice.
-TTS_PROVIDER = os.environ.get("TTS_PROVIDER", "azure")  # azure | elevenlabs | fal
+# Thai voice. ElevenLabs is the default because the active annual Starter plan
+# already includes enough monthly credits for both daily flows.
+TTS_PROVIDER = _get("TTS_PROVIDER", "elevenlabs")  # elevenlabs | azure | fal
 ELEVENLABS_VOICE_ID = "XrExE9yKIg1WjnnlVkGX"  # "Matilda" – warm female, multilingual
 ELEVENLABS_MODEL = "eleven_multilingual_v2"
 AZURE_VOICE = "th-TH-PremwadeeNeural"
 
 
 # ---------------------------------------------------------------------------
-# AI video generation (fal.ai)
+# Flow A video renderer
 # ---------------------------------------------------------------------------
-# Models on fal.ai (verified May 2026). Pick per goal:
-#   veo3/image-to-video                       $0.20/s  BEST at "human using product" (default)
-#   kling-video/v2.5-turbo/pro/image-to-video $0.07/s  cheap, photoreal, but won't add a human
-#   wan/v2.5/image-to-video                   $0.05/s  cheapest
-# Default = Veo 4s hero clip: reliably composes a real person using the product.
-# Story-scene pipeline: Flux text-to-image → Kling image-to-video
-# 4 story scenes × 5s × $0.07 = $1.40/video
+# local : product image + Ken Burns motion + captions, rendered by FFmpeg ($0)
+# fal   : Flux stills + Kling motion on fal.ai (~$1.40/video, needs fal credits)
+VIDEO_PROVIDER = _get("VIDEO_PROVIDER", "local")
+LOCAL_SCENES = 5  # hook, problem, reveal, benefit, price — plus the CTA card
+
 FAL_FLUX_MODEL = "fal-ai/flux/dev"
 FAL_KLING_MODEL = "fal-ai/kling-video/v2.5-turbo/pro/image-to-video"
-FAL_KLING_PRICE_PER_SEC = float(os.environ.get("FAL_KLING_PRICE_PER_SEC", "0.07"))
-STORY_SCENES = int(os.environ.get("STORY_SCENES", "4"))
-STORY_CLIP_SECONDS = int(os.environ.get("STORY_CLIP_SECONDS", "5"))
+FAL_KLING_PRICE_PER_SEC = float(_get("FAL_KLING_PRICE_PER_SEC", "0.07"))
+STORY_SCENES = int(_get("STORY_SCENES", "4"))
+STORY_CLIP_SECONDS = int(_get("STORY_CLIP_SECONDS", "5"))
 
-# Legacy i2v (kept for backwards compat / override)
-FAL_I2V_MODEL = os.environ.get("FAL_I2V_MODEL", "fal-ai/veo3/image-to-video")
-FAL_I2V_PRICE_PER_SEC = float(os.environ.get("FAL_I2V_PRICE_PER_SEC", "0.20"))
-AI_CLIPS = int(os.environ.get("AI_CLIPS", "1"))
-AI_CLIP_SECONDS = int(os.environ.get("AI_CLIP_SECONDS", "4"))
+# Legacy single-clip i2v path (kept for the fal provider)
+FAL_I2V_MODEL = _get("FAL_I2V_MODEL", "fal-ai/veo3/image-to-video")
+FAL_I2V_PRICE_PER_SEC = float(_get("FAL_I2V_PRICE_PER_SEC", "0.20"))
+AI_CLIPS = int(_get("AI_CLIPS", "1"))
+AI_CLIP_SECONDS = int(_get("AI_CLIP_SECONDS", "4"))
 
-# Hard per-video spend ceiling. Orchestrator aborts before generating if exceeded.
-COST_CAP_USD = float(os.environ.get("COST_CAP_USD", "2.00"))
-
-# Monthly budget tracking (informational; written to output/spend_log.json)
-MONTHLY_BUDGET_USD = float(os.environ.get("MONTHLY_BUDGET_USD", "30"))
+# Hard per-video spend ceiling. Orchestrators abort before generating if exceeded.
+COST_CAP_USD = float(_get("COST_CAP_USD", "2.00"))
+MONTHLY_BUDGET_USD = float(_get("MONTHLY_BUDGET_USD", "30"))
 
 
 def estimate_video_cost() -> float:
-    """Estimate fal.ai spend for one video: 4 story scenes × 5s × $0.07."""
-    return STORY_SCENES * STORY_CLIP_SECONDS * FAL_KLING_PRICE_PER_SEC
+    """Paid-API spend for one Flow A video under the active provider."""
+    if VIDEO_PROVIDER == "fal":
+        return STORY_SCENES * STORY_CLIP_SECONDS * FAL_KLING_PRICE_PER_SEC
+    return 0.0
 
 
 # ---------------------------------------------------------------------------
 # Publishing
 # ---------------------------------------------------------------------------
-# "review"  -> send MP4 to Telegram, you tap to post (safe default while tuning)
-# "auto"    -> also push to upload-post.com for direct posting to socials
-PUBLISH_MODE = os.environ.get("PUBLISH_MODE", "review")
+# "review"  -> send MP4 to Telegram only; a human posts it (safe default)
+# "auto"    -> also publish to the connected social accounts
+PUBLISH_MODE = _get("PUBLISH_MODE", "review")
 UPLOAD_POST_PLATFORMS = ["tiktok", "instagram", "youtube"]
+META_GRAPH_VERSION = _get("META_GRAPH_VERSION", "v23.0")
 
 
 # ---------------------------------------------------------------------------
-# Source sheet layout (Inbox tab) — column letters
+# Flow A source sheet layout (Inbox tab) — column indexes
 # ---------------------------------------------------------------------------
 # A Date | B Name | C Price | D Commission% | E Sales | F Affiliate URL
-# G Niche | H Status | I Notes | J Image URL  <-- add this column
+# G Niche | H Status | I Notes | J Image URL | K TikTok | L Instagram | M Shopee Video
 SHEET_RANGE = "Inbox!A:M"
 COL = {
     "date": 0, "name": 1, "price": 2, "commission": 3, "sales": 4,
@@ -126,6 +144,33 @@ COL = {
 STATUS_READY = "Ready"
 STATUS_DONE = "Posted"
 STATUS_FAILED = "Failed"
+
+
+# ---------------------------------------------------------------------------
+# Flow B — storytelling / edutainment
+# ---------------------------------------------------------------------------
+STORY_SERIES_NAME = _get("STORY_SERIES_NAME", "เรื่องเล่าจากแผนที่")
+STORY_NICHE = _get(
+    "STORY_NICHE",
+    "เรื่องเล่าประวัติศาสตร์และภูมิศาสตร์ผ่านแผนที่ ทั้งไทยและโลก เล่าแบบสนุก เข้าใจง่าย",
+)
+# auto      : AI illustration for "scene" visuals when available, real Wikimedia
+#             Commons images for maps/photos, designed text cards as last resort
+# wikimedia : Wikimedia Commons only (+ cards)
+# gateway   : Vercel AI Gateway image model only (+ cards) — needs paid credits
+# cards     : designed text cards only (fully offline)
+STORY_IMAGE_PROVIDER = _get("STORY_IMAGE_PROVIDER", "auto")
+STORY_IMAGE_MODEL = _get("STORY_IMAGE_MODEL", "google/gemini-2.5-flash-image")
+STORY_IMAGE_PRICE_USD = 0.039
+STORY_MAX_AI_IMAGES = int(_get("STORY_MAX_AI_IMAGES", "4"))
+STORY_AUTO_TOPIC = _get("STORY_AUTO_TOPIC", "on").lower() in ("1", "on", "true", "yes")
+STORY_VOICE_ID = _get("STORY_VOICE_ID", ELEVENLABS_VOICE_ID)
+# Stronger than the Flow A default at factual Thai writing; still allowed on the
+# AI Gateway free tier (billed against its free monthly credit, ~$0.005/story).
+STORY_LLM_MODEL = _get("STORY_LLM_MODEL", "openai/gpt-4.1-mini")
+STORY_ACCENT = "#F2B544"   # map-gold, used for the series badge
+STORY_INK = "#0E2A3B"      # deep chart-ink, used for text cards
+STORY_TAB = "Stories"
 
 
 @dataclass
@@ -154,12 +199,18 @@ class Scene:
     i2v_prompt: str = ""    # motion prompt for Kling animation
     flux_prompt: str = ""   # image-generation prompt for Flux (kind=="story")
     image_url: str = ""     # source image for ai/kenburns
+    image_path: str = ""    # local source image (takes precedence over image_url)
     bg_color: str = ""      # for cta
+    motion: str = ""        # kenburns motion: in | out | pan-left | pan-right | up | down
+    header: str = ""        # small title shown at the top of the frame
+    badge: str = ""         # series badge above the header
+    credit: str = ""        # image attribution shown at the bottom
+    big: bool = False       # large centered caption (hook / title scenes)
 
 
 @dataclass
 class VideoPlan:
-    """Full creative plan returned by the scriptwriter."""
+    """Full creative plan returned by a scriptwriter."""
     script: str                       # full Thai voiceover
     caption: str
     hashtags: list[str]

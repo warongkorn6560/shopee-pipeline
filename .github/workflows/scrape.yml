@@ -1,12 +1,17 @@
 name: Daily Shopee scrape
 on:
   schedule:
-    - cron: "0 2 * * *"   # 09:00 Asia/Bangkok daily
+    - cron: "30 1 * * *"   # 08:30 Asia/Bangkok, before the 09:00 video run
   workflow_dispatch:
+
+concurrency:
+  group: shopee-scrape
+  cancel-in-progress: false
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -14,8 +19,10 @@ jobs:
           python-version: "3.12"
       - run: pip install -r scraper/requirements.txt
       - name: Write service account JSON
-        run: echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' > scraper/service-account.json
-      - name: Run scraper
+        env:
+          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: printf '%s' "$SA_JSON" > scraper/service-account.json
+      - name: Run scraper (new products land in the Inbox as Status=New)
         env:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: scraper/service-account.json

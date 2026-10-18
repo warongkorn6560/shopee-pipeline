@@ -22,22 +22,54 @@ from .config import (
 )
 
 
+_VOICE_SETTINGS = {"stability": 0.5, "similarity_boost": 0.75, "style": 0.3}
+
+
 def _elevenlabs(text: str, out: Path) -> Path:
     key = ENV["ELEVENLABS_API_KEY"]
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
     r = requests.post(
         url,
         headers={"xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg"},
-        json={
-            "text": text,
-            "model_id": ELEVENLABS_MODEL,
-            "voice_settings": {"stability": 0.5, "similarity_boost": 0.75, "style": 0.3},
-        },
+        json={"text": text, "model_id": ELEVENLABS_MODEL, "voice_settings": _VOICE_SETTINGS},
         timeout=120,
     )
     r.raise_for_status()
     out.write_bytes(r.content)
     return out
+
+
+def remaining_characters() -> int | None:
+    """Characters left in the ElevenLabs billing period (None if unknown)."""
+    key = ENV.get("ELEVENLABS_API_KEY")
+    if not key:
+        return None
+    try:
+        r = requests.get("https://api.elevenlabs.io/v1/user/subscription",
+                         headers={"xi-api-key": key}, timeout=30)
+        r.raise_for_status()
+        s = r.json()
+        return int(s["character_limit"]) - int(s["character_count"])
+    except Exception:  # noqa: BLE001 — quota check is advisory
+        return None
+
+
+def synthesize_with_timestamps(text: str, out: Path, voice_id: str | None = None) -> tuple[Path, dict | None]:
+    """ElevenLabs TTS that also returns per-character timing, so visuals can
+    switch exactly when the narration moves to the next scene."""
+    import base64
+    key = ENV["ELEVENLABS_API_KEY"]
+    vid = voice_id or ELEVENLABS_VOICE_ID
+    r = requests.post(
+        f"https://api.elevenlabs.io/v1/text-to-speech/{vid}/with-timestamps",
+        headers={"xi-api-key": key, "Content-Type": "application/json"},
+        json={"text": text, "model_id": ELEVENLABS_MODEL, "voice_settings": _VOICE_SETTINGS},
+        timeout=180,
+    )
+    r.raise_for_status()
+    data = r.json()
+    out.write_bytes(base64.b64decode(data["audio_base64"]))
+    return out, data.get("alignment")
 
 
 _AZURE_MAI_VOICES = [

@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 
 from .config import (
-    ENV, NICHE, SHOPEE_ORANGE, TIKTOK_HANDLE,
+    ENV, NICHE, SHOPEE_ORANGE, TIKTOK_HANDLE, VIDEO_PROVIDER, WORK_DIR,
     Product, Scene, VideoPlan,
 )
 
@@ -30,7 +30,7 @@ GATEWAY_MODEL = ENV.get("LLM_MODEL", "google/gemini-2.5-flash-lite")
 ANTHROPIC_MODEL = ENV.get("CLAUDE_MODEL", "claude-sonnet-4-6")
 
 
-def _call_llm(system: str, prompt: str, max_tokens: int = 3000) -> str:
+def _call_llm(system: str, prompt: str, max_tokens: int = 3000, model: str | None = None) -> str:
     """Single entry point for the LLM. Returns the raw text response."""
     if LLM_PROVIDER == "anthropic" and ENV.get("ANTHROPIC_API_KEY"):
         import anthropic
@@ -57,7 +57,7 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000) -> str:
     for attempt in range(5):
         try:
             resp = client.chat.completions.create(
-                model=GATEWAY_MODEL, max_tokens=max_tokens,
+                model=model or GATEWAY_MODEL, max_tokens=max_tokens,
                 messages=[{"role": "system", "content": system},
                           {"role": "user", "content": prompt}],
             )
@@ -151,8 +151,68 @@ def _strip_to_json(text: str) -> str:
     return t.strip()
 
 
+LOCAL_SYSTEM = """You are a top-earning Thai TikTok/Reels affiliate creator. You make fast, \
+punchy PRODUCT SHOWCASE videos from a single product photo: a hook that stops the scroll, a \
+relatable pain, the product as the fix, one concrete benefit, and the price. Warm peer-to-peer \
+Thai, a little funny. You reply with raw JSON only."""
+
+LOCAL_PROMPT = """Plan a 5-beat Thai product showcase video. The visuals are the real product \
+photo with slow camera moves, so all the persuasion lives in the voiceover and captions.
+
+PRODUCT
+- Name: {name}
+- Price: {price} THB
+- Commission: {commission}%
+- Sales: {sales}
+- Niche: {niche}
+- Notes: {notes}
+
+BEATS (one caption per beat, in this order)
+  1 HOOK     — a scroll-stopping line (question, POV, or bold claim)
+  2 PAIN     — the everyday problem this product solves
+  3 REVEAL   — introduce the product (name it here, short)
+  4 BENEFIT  — one concrete, believable benefit
+  5 OFFER    — the price and why it's worth it
+
+VOICEOVER RULES
+- Thai, 45-60 words (~20-25 seconds), follows the 5 beats in order
+- Ends EXACTLY with: ดูลิงก์ในโปรไฟล์ได้เลย
+- The narrator is a woman: if you use a polite particle, use ค่ะ / นะคะ, never ครับ
+- No exaggerated medical/financial claims
+
+CAPTION RULES
+- Thai, at most 6 words each; put a space between phrases so lines can wrap
+- One emoji max per caption
+
+Return EXACTLY this JSON:
+{{
+  "script": "Full Thai voiceover. Ends with: ดูลิงก์ในโปรไฟล์ได้เลย",
+  "captions": ["hook", "pain", "reveal", "benefit", "offer"],
+  "caption": "Post caption — Thai, 1-2 emojis, price mentioned naturally, ends with a comment-bait question.",
+  "hashtags": ["5 Thai/English hashtags starting with #"],
+  "hook_alt_1": "Alternative Thai hook (แอบบอก or POV format).",
+  "hook_alt_2": "Another alternative hook — more dramatic or absurd."
+}}
+
+Output raw JSON only."""
+
+_LOCAL_MOTIONS = ("in", "pan-right", "out", "pan-left", "in")
+
+
+def _llm_json(system: str, prompt: str, *, model: str | None = None, max_tokens: int = 3000) -> dict:
+    """Call the LLM and parse JSON, retrying once on malformed output."""
+    last: Exception | None = None
+    for _ in range(2):
+        raw = _call_llm(system, prompt, max_tokens=max_tokens, model=model)
+        try:
+            return json.loads(_strip_to_json(raw))
+        except json.JSONDecodeError as e:
+            last = e
+    raise RuntimeError(f"LLM returned invalid JSON twice: {last}")
+
+
 def write_plan(product: Product) -> VideoPlan:
-    prompt = PROMPT_TEMPLATE.format(
+    fields = dict(
         name=product.name,
         price=product.price_thb,
         commission=product.commission_pct,
@@ -160,9 +220,36 @@ def write_plan(product: Product) -> VideoPlan:
         niche=product.niche or NICHE,
         notes=product.notes or "-",
     )
-    raw = _call_llm(SYSTEM, prompt)
-    data = json.loads(_strip_to_json(raw))
-    return _assemble_plan(product, data)
+    if VIDEO_PROVIDER == "fal":
+        return _assemble_plan(product, _llm_json(SYSTEM, PROMPT_TEMPLATE.format(**fields)))
+    return _assemble_local_plan(product, _llm_json(LOCAL_SYSTEM, LOCAL_PROMPT.format(**fields)))
+
+
+def _assemble_local_plan(product: Product, data: dict) -> VideoPlan:
+    """Five Ken Burns beats over the product photo, then the CTA card."""
+    image_url, image_path = product.image_url if product.has_image else "", ""
+    if not product.has_image:
+        from .frames import product_card
+        WORK_DIR.mkdir(parents=True, exist_ok=True)
+        image_path = str(product_card(WORK_DIR / "product_card.jpg",
+                                      name=product.name, price=product.price_thb))
+    captions = (data.get("captions") or [])[:5]
+    captions += [""] * (5 - len(captions))
+    scenes = [
+        Scene(kind="kenburns", duration=4 if i else 3, caption=cap, image_url=image_url,
+              image_path=image_path, motion=_LOCAL_MOTIONS[i], big=(i == 0))
+        for i, cap in enumerate(captions)
+    ]
+    scenes.append(Scene(
+        kind="cta", duration=4,
+        caption=f"{product.price_thb} บาท\nดูลิงก์ในโปรไฟล์ได้เลย\n{TIKTOK_HANDLE}",
+        bg_color=SHOPEE_ORANGE,
+    ))
+    return VideoPlan(
+        script=data["script"], caption=data.get("caption", ""),
+        hashtags=data.get("hashtags", []), hook_alt_1=data.get("hook_alt_1", ""),
+        hook_alt_2=data.get("hook_alt_2", ""), scenes=scenes,
+    )
 
 
 def _assemble_plan(product: Product, data: dict) -> VideoPlan:
@@ -199,6 +286,17 @@ def _assemble_plan(product: Product, data: dict) -> VideoPlan:
 
 def mock_plan(product: Product) -> VideoPlan:
     """Offline plan (no API) for testing the compositor."""
+    if VIDEO_PROVIDER != "fal":
+        return _assemble_local_plan(product, {
+            "script": "เคยไหม ซื้อของเล่นให้น้องหมา ไม่ถึงวันก็พังแล้ว ลองตัวนี้ดู ของเล่นยางกัดทนพิเศษ "
+                      "กัดยังไงก็ไม่หลุด ราคาแค่ร้อยเดียว คุ้มมาก ดูลิงก์ในโปรไฟล์ได้เลย",
+            "captions": ["น้องหมากัดพังทุกชิ้น? 🐶", "ซื้อใหม่ ทุกสัปดาห์", "ยางกัด ทนพิเศษ",
+                         "กัดแรงแค่ไหน ก็ไม่หลุด", "แค่ 99 บาท"],
+            "caption": "น้องหมาบ้านไหนกัดของเล่นพังบ้าง 🐶 ตัวนี้ทนจริง แค่ 99 บาท บ้านคุณน้องกัดอะไรพังล่าสุด?",
+            "hashtags": ["#ของเล่นสุนัข", "#ShopeeFinds", "#คนรักหมา", "#ของมันต้องมี", "#PetLover"],
+            "hook_alt_1": "แอบบอกว่าทาสหมาทุกคนต้องมีตัวนี้",
+            "hook_alt_2": "POV: น้องหมากัดโซฟาเพราะเบื่อของเล่น",
+        })
     return _assemble_plan(product, {
         "script": "เคยมั้ย อัดคลิปอยู่ดีๆ สายไมค์มันพันไปหมดเลย แล้วยิ่งออกไปอัดข้างนอก สายมันหลุดกลางคลิปเลย จนเจอไมโครโฟนไร้สายตัวนี้ ไม่มีสาย ไม่มีปัญหา ชีวิตดีขึ้นมากเลยนะ ดูลิงก์ในโปรไฟล์ได้เลย",
         "story_scenes": [

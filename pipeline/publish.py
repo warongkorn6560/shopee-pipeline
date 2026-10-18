@@ -1,15 +1,11 @@
 """
-Publish the finished video.
+Publish finished videos.
 
-Two paths:
-  review (default) : upload the MP4 to your Telegram + a ready-to-paste caption,
-                     hashtags, affiliate link and backup hooks. You tap to post.
-                     Free, and keeps a human quality gate while you tune.
-  auto             : ALSO push to socials via upload-post.com (TikTok/IG/YouTube).
-                     Free tier = 10 uploads/month; paid above that.
+  review (default) : send the MP4 + a ready-to-paste caption to Telegram.
+                     A human posts it. Free, and keeps a quality gate.
+  auto             : ALSO publish to the connected social accounts.
 
-Shopee video upload has NO API — that step is always manual (≈30s in the app).
-The Telegram message includes the affiliate link so that's one tap too.
+Shopee Video upload has NO API — that step is always manual (≈30s in the app).
 """
 
 from __future__ import annotations
@@ -20,11 +16,35 @@ import requests
 
 from .config import ENV, PUBLISH_MODE, UPLOAD_POST_PLATFORMS
 
+_TG_CAPTION_LIMIT = 1000
+
 
 def _telegram(method: str) -> str:
     return f"https://api.telegram.org/bot{ENV['TELEGRAM_BOT_TOKEN']}/{method}"
 
 
+def telegram_send_video(video: Path, text: str) -> bool:
+    """Send a video with caption; long text follows as a separate message."""
+    chat = ENV["TELEGRAM_CHAT_ID"]
+    with video.open("rb") as f:
+        r = requests.post(
+            _telegram("sendVideo"),
+            data={"chat_id": chat, "caption": text[:_TG_CAPTION_LIMIT], "supports_streaming": "true"},
+            files={"video": (video.name, f, "video/mp4")},
+            timeout=300,
+        )
+    ok = r.ok and r.json().get("ok", False)
+    if not ok:
+        requests.post(_telegram("sendMessage"), timeout=60,
+                      data={"chat_id": chat, "text": text + f"\n\n(⚠️ video send failed: {r.text[:200]})"})
+    elif len(text) > _TG_CAPTION_LIMIT:
+        requests.post(_telegram("sendMessage"), timeout=60, data={"chat_id": chat, "text": text})
+    return ok
+
+
+# ---------------------------------------------------------------------------
+# Flow A — Shopee affiliate
+# ---------------------------------------------------------------------------
 def caption_block(plan, product) -> str:
     tags = " ".join(plan.hashtags)
     return (
@@ -38,26 +58,7 @@ def caption_block(plan, product) -> str:
 
 
 def send_to_telegram(video: Path, plan, product) -> bool:
-    cap = caption_block(plan, product)
-    # Telegram captions cap at 1024 chars; send video then a full text follow-up.
-    with video.open("rb") as f:
-        r = requests.post(
-            _telegram("sendVideo"),
-            data={"chat_id": ENV["TELEGRAM_CHAT_ID"], "caption": cap[:1000]},
-            files={"video": (video.name, f, "video/mp4")},
-            timeout=300,
-        )
-    ok = r.ok and r.json().get("ok", False)
-    if not ok:
-        # fallback: at least send the text + a note (video may exceed 50MB)
-        requests.post(_telegram("sendMessage"),
-                      data={"chat_id": ENV["TELEGRAM_CHAT_ID"],
-                            "text": cap + f"\n\n(⚠️ video send failed: {r.text[:200]})"})
-    elif len(cap) > 1000:
-        # only send a follow-up if caption was truncated on the video
-        requests.post(_telegram("sendMessage"),
-                      data={"chat_id": ENV["TELEGRAM_CHAT_ID"], "text": cap})
-    return ok
+    return telegram_send_video(video, caption_block(plan, product))
 
 
 def auto_post(video: Path, plan, product) -> dict:
@@ -84,14 +85,38 @@ def auto_post(video: Path, plan, product) -> dict:
         return {"status_code": r.status_code, "text": r.text[:300]}
 
 
+def _safe(fn, *args) -> dict:
+    try:
+        return fn(*args)
+    except Exception as exc:  # noqa: BLE001 — one platform failing must not abort the run
+        return {"error": f"{type(exc).__name__}: {str(exc)[:300]}"}
+
+
 def publish(video: Path, plan, product, mode: str | None = None) -> dict:
     mode = mode or PUBLISH_MODE
     result = {"telegram": send_to_telegram(video, plan, product)}
     if mode == "auto":
-        result["upload_post"] = auto_post(video, plan, product)
+        result["upload_post"] = _safe(auto_post, video, plan, product)
         caption = plan.caption + " " + " ".join(plan.hashtags) + "\n\n🔗 ดูลิงก์ในโปรไฟล์ได้เลย 👆"
-        from . import tiktok as _tiktok
-        result["tiktok"] = _tiktok.publish(video, caption)
         from . import instagram as _ig
-        result["instagram"] = _ig.publish(video, caption)
+        from . import tiktok as _tiktok
+        result["tiktok"] = _safe(_tiktok.publish, video, caption)
+        result["instagram"] = _safe(_ig.publish, video, caption)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Flow B — storytelling
+# ---------------------------------------------------------------------------
+def publish_story(video: Path, review_text: str, social_caption: str,
+                  mode: str | None = None) -> dict:
+    mode = mode or PUBLISH_MODE
+    result: dict = {"telegram": telegram_send_video(video, review_text)}
+    if mode == "auto":
+        from . import facebook as _fb
+        from . import instagram as _ig
+        from . import tiktok as _tiktok
+        result["facebook"] = _safe(_fb.publish_reel, video, social_caption)
+        result["tiktok"] = _safe(_tiktok.publish, video, social_caption[:2000])
+        result["instagram"] = _safe(_ig.publish, video, social_caption[:2000])
     return result
