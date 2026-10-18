@@ -27,4 +27,8 @@ npm install
 npm run dev
 ```
 
-Put the same variables in `dashboard/.env.local` (git-ignored). Deploy with `vercel deploy --prod`.
+Put the same variables in `dashboard/.env.local` (git-ignored).
+
+Deploys are automatic: the Vercel project tracks `main` with root directory
+`dashboard`, and `vercel.json` skips builds when a push doesn't touch this folder.
+Environment variable changes need a redeploy (Vercel → Deployments → Redeploy).
