@@ -1,0 +1,47 @@
+import "server-only";
+import { cache } from "react";
+import { FLOWS } from "./flows";
+import { githubConfigured } from "./github";
+import { elevenLabs, gatewayCredits, telegramBot } from "./health";
+import { sheetsConfigured } from "./sheets";
+import { getProducts, getRunsFor, getSecrets, getStories, getVariables, getWorkflows } from "./data";
+import type { StatusContext } from "./status";
+
+/** Everything the overview needs, fetched in parallel once per request. */
+export const loadContext = cache(async (): Promise<StatusContext & { errors: string[] }> => {
+  const github = githubConfigured();
+  const primaries = FLOWS.map((f) => f.workflows.find((w) => w.primary)!.file);
+  const [workflows, vars, secrets, eleven, gateway, telegram, products, stories, ...runs] = await Promise.all([
+    github ? getWorkflows() : null,
+    github ? getVariables() : null,
+    github ? getSecrets() : null,
+    elevenLabs(),
+    gatewayCredits(),
+    telegramBot(),
+    sheetsConfigured() ? getProducts() : null,
+    sheetsConfigured() ? getStories() : null,
+    ...primaries.map((f) => (github ? getRunsFor(f) : null)),
+  ]);
+  const errors: string[] = [];
+  for (const [label, s] of [["GitHub", workflows], ["Google Sheet", products]] as const) {
+    if (s && !s.ok) errors.push(`${label}: ${s.error}`);
+  }
+  const latest: StatusContext["latest"] = {};
+  primaries.forEach((f, i) => {
+    const r = runs[i];
+    latest[f] = r && r.ok ? r.value[0] : undefined;
+  });
+  return {
+    github,
+    workflows: workflows?.ok ? workflows.value : null,
+    vars: vars?.ok ? vars.value : null,
+    secrets: secrets?.ok ? secrets.value : null,
+    eleven,
+    gateway,
+    telegram,
+    readyProducts: products?.ok ? products.value.filter((p) => p.status === "Ready").length : null,
+    readyStories: stories?.ok ? (stories.value ?? []).filter((s) => s.status === "Ready").length : null,
+    latest,
+    errors,
+  };
+});

@@ -1,0 +1,198 @@
+@import "tailwindcss";
+
+/* Layout: control-room shell — fixed left rail, scannable main column of
+   flow consoles, run log, and service gauges. Tally lamps encode run state. */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #f6f7f9;
+  --line: #e1e5eb;
+  --line-strong: #c9d0da;
+  --ink: #0f1720;
+  --ink-2: #4b5664;
+  --ink-3: #8691a0;
+
+  --shopee: #e8452a;
+  --shopee-soft: #fdece7;
+  --story: #a8700c;
+  --story-mark: #f2b544;
+  --story-ink: #0e2a3b;
+  --story-soft: #fbf2df;
+
+  --ok: #12804a;
+  --ok-soft: #e2f4ea;
+  --warn: #a96200;
+  --warn-soft: #fff1d9;
+  --bad: #c92a2a;
+  --bad-soft: #fde7e7;
+  --live: #e5322d;
+  --focus: #2b6be6;
+  --shadow: 0 1px 2px rgb(15 23 32 / 0.05), 0 8px 24px -12px rgb(15 23 32 / 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #090c10;
+    --surface: #10141a;
+    --surface-2: #151a21;
+    --line: #212832;
+    --line-strong: #2f3845;
+    --ink: #e7ebf0;
+    --ink-2: #a2acb9;
+    --ink-3: #6b7584;
+    --shopee: #ff6a4d;
+    --shopee-soft: #2a1610;
+    --story: #f2b544;
+    --story-mark: #f2b544;
+    --story-ink: #0e2a3b;
+    --story-soft: #231b0b;
+    --ok: #3cd58b;
+    --ok-soft: #0d2318;
+    --warn: #f4b443;
+    --warn-soft: #251b09;
+    --bad: #ff6b6b;
+    --bad-soft: #2a1212;
+    --live: #ff4d47;
+    --focus: #6b9bff;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px -14px rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #090c10;
+  --surface: #10141a;
+  --surface-2: #151a21;
+  --line: #212832;
+  --line-strong: #2f3845;
+  --ink: #e7ebf0;
+  --ink-2: #a2acb9;
+  --ink-3: #6b7584;
+  --shopee: #ff6a4d;
+  --shopee-soft: #2a1610;
+  --story: #f2b544;
+  --story-mark: #f2b544;
+  --story-ink: #0e2a3b;
+  --story-soft: #231b0b;
+  --ok: #3cd58b;
+  --ok-soft: #0d2318;
+  --warn: #f4b443;
+  --warn-soft: #251b09;
+  --bad: #ff6b6b;
+  --bad-soft: #2a1212;
+  --live: #ff4d47;
+  --focus: #6b9bff;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px -14px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-shopee: var(--shopee);
+  --color-shopee-soft: var(--shopee-soft);
+  --color-story: var(--story);
+  --color-story-mark: var(--story-mark);
+  --color-story-ink: var(--story-ink);
+  --color-story-soft: var(--story-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-live: var(--live);
+  --color-focus: var(--focus);
+  --font-display: var(--font-chakra), "IBM Plex Sans Thai", system-ui, sans-serif;
+  --font-sans: var(--font-plex-thai), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --shadow-card: var(--shadow);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+@keyframes tally {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 55%, transparent);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--live) 0%, transparent);
+  }
+}
+
+.tally-live {
+  animation: tally 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tally-live,
+  .skeleton {
+    animation: none;
+  }
+}
+
+dialog::backdrop {
+  background: rgb(9 12 16 / 0.55);
+  backdrop-filter: blur(2px);
+}
