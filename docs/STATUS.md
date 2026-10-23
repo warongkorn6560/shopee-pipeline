@@ -19,16 +19,23 @@ as a read-only archive). Telegram only notifies, with a link to the review page.
 | Workflow | `daily-video.yml` 09:00 BKK | `story-video.yml` 19:00 BKK (optional `topic` input) |
 | Entry point | `python -m pipeline.run` | `python -m pipeline.story` |
 | Input | Dashboard queue → products (first `Ready`) | Dashboard queue → stories (first `Ready`); if empty, AI proposes a new topic |
-| Script | Gemini 2.5 Flash-Lite via AI Gateway (free tier) | GPT-4.1 mini via AI Gateway, grounded in fetched Wikipedia text |
-| Visuals | Product photo (auto-fetched from the s.shopee short link) + Ken Burns | Real Wikimedia Commons maps/photos with on-screen credits |
-| Voice | ElevenLabs multilingual v2 | ElevenLabs with character timestamps |
+| Script | `pipeline/llm.py`: Claude (`CLAUDE_MODEL`, default claude-opus-5-5) when the `ANTHROPIC_API_KEY` secret exists, else Gemini 2.5 Flash-Lite via AI Gateway | Same LLM switch (else GPT-4.1 mini via Gateway), grounded in fetched Wikipedia text |
+| Visuals | Product photo (auto-fetched from the s.shopee short link) + Ken Burns | `story/render.py` + `maps.py`: animated satellite map (EOX s2cloudless 2016, CC BY), OSM geometry via Overpass, Nominatim geocoding, Kanit fonts, music bed + whoosh SFX |
+| Voice | ElevenLabs `eleven_v4`, Thai voice Mali (`SHOP_VOICE_ID`) | ElevenLabs `eleven_v4`, Thai voice Duang (`STORY_VOICE_ID`), TTS-normalized `scene.spoken` text |
 | Output | Upload to dashboard → `/review` + Telegram notice | same |
-| Cost | $0 per video | ≈ $0.005 per video (AI Gateway free credit) |
+| Cost | $0 per video on AI Gateway; Anthropic per-use pricing once a Claude key is saved | same |
 
 CI setup: both workflows use `.github/actions/setup-media` — a cached static FFmpeg n8.1
 build plus apt `libraqm0` only (apt-installing ffmpeg hung runs for 25+ min), and the
 Python step fails fast if Pillow can't shape Thai (raqm). Verified 2026-10-24: Flow A
 run 40031160778 (38s), Flow B run 40031165981 (67s), both delivered to /review + Telegram.
+
+Voice note: `eleven_multilingual_v2` has no real Thai support (STT check 65%) —
+`eleven_v4` with native Thai voices scores 100%. Thai voices in the ElevenLabs library:
+Duang `jucSqawHKM1rUNf78oZQ` (story default), Mali `7XW5JhaNn90bnFojQ5DA` (Flow A
+default), Tonce `yq05eeRaHPMGuWTVpqeP`. `story-video.yml` timeout is 40 min (map rendering).
+Dashboard Settings → "AI & เสียง" saves `ANTHROPIC_API_KEY` as an Actions secret (sealed
+box) — the dashboard PAT needs Secrets: Read and write for that.
 
 Local test flags: `--offline` (no APIs), `--dry-run` (plan only), `--no-publish`
 (render with real APIs; queue untouched — Flow A uses `scraper/products.csv`).
@@ -59,7 +66,8 @@ Producing for 3h are released as Failed. Videos: review → approved / rejected 
 | ElevenLabs | **Paid** Starter annual (~$50/yr), renews 2027-06-16 | Can't exceed quota → no overage. ~450 chars/video |
 | Vercel Pro | **Paid** $20/mo + usage (Jul $33.86, Aug $45.02, Sep $24.82) | Usage is mostly other projects (Sep: thaipography-frontend $4.43); this dashboard doesn't register |
 | Vercel Blob `pipeline-data` | Included in Pro | <1 GB with 30-day video cleanup |
-| AI Gateway | Free tier (~$5/mo free credit) | Image models blocked on free tier |
+| AI Gateway | Free tier (~$5/mo free credit) | Image models blocked on free tier; the LLM used while no Claude key is set |
+| Anthropic API (Claude) | **Pay per use — only after a key is saved** (none set on 2026-10-24) | Used by `pipeline/llm.py` when `ANTHROPIC_API_KEY` exists |
 | GitHub Actions, Telegram, Wikimedia | Free | |
 | Google Sheets / GCP `shopee-pipeline-499816` | Free, billing disabled | No longer used |
 | fal.ai | $0, no card | Not used |
@@ -78,9 +86,10 @@ projects prom-school-map + rugged-research-465212-m4 deleted on 2026-10-24
 
 `PUBLISH_MODE` (A: review|auto) · `LLM_MODEL` · `STORY_PUBLISH_MODE` (B: review|auto) ·
 `STORY_SERIES_NAME` · `STORY_NICHE` · `STORY_AUTO_TOPIC` (on|off) ·
-`STORY_IMAGE_PROVIDER` · `STORY_LLM_MODEL`. Unset = the workflow's safe default.
+`STORY_IMAGE_PROVIDER` · `STORY_LLM_MODEL` · `CLAUDE_MODEL` · `STORY_VOICE_ID` · `SHOP_VOICE_ID` ·
+`STORY_TARGET_SECONDS`. Unset = the workflow's safe default.
 Secrets needed: AI_GATEWAY_API_KEY, ELEVENLABS_API_KEY, TELEGRAM_BOT_TOKEN,
-TELEGRAM_CHAT_ID, PIPELINE_API_KEY (+ social tokens only for auto mode).
+TELEGRAM_CHAT_ID, PIPELINE_API_KEY; optional ANTHROPIC_API_KEY (Claude) and social tokens for auto mode.
 
 ## Still needs the user (all optional)
 
