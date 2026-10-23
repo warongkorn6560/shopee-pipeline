@@ -18,6 +18,12 @@ export interface ServiceInfo {
 
 export const SERVICES: ServiceInfo[] = [
   {
+    name: "Claude API (Anthropic)", role: "เขียนบท วางช็อตแผนที่ และคิดหัวข้อ ทั้งสอง flow", billing: "paid",
+    cost: "คีย์ของคุณ (งบ ~$100/เดือน) · ≈ $0.10/คลิปเรื่องเล่า (Opus 5.5), ≈ $0.03/คลิปขาย",
+    decision: "ใช้แทน AI Gateway เมื่อใส่ key ที่หน้าตั้งค่า — ทำวันละ 2 คลิปตกราว $4/เดือน",
+    checked: "2026-10-24", url: "https://console.anthropic.com/settings/billing",
+  },
+  {
     name: "ElevenLabs", role: "เสียงพากย์ไทยทั้งสอง flow", billing: "paid",
     cost: "≈ $50 / ปี (Starter รายปี)", renews: "2027-06-16",
     decision: "ใช้ต่อ — 90,000 ตัวอักษร/เดือน พอสำหรับ 2 คลิป/วัน เติมเกินโควตาไม่ได้ จึงไม่มีบิลเพิ่ม · ต่ออายุอัตโนมัติถ้าไม่ปิด",

@@ -43,6 +43,7 @@ function stepTone(flow: FlowDef, step: FlowStep, ctx: StatusContext): { tone: To
       return { tone: "warn", note: "คิวว่าง — เพิ่มที่หน้าคิวงาน" };
     }
     case "script": {
+      if (has(ctx, "ANTHROPIC_API_KEY")) return { tone: "ok", note: value(ctx, "CLAUDE_MODEL", "claude-opus-5-5").replace("claude-", "Claude ") };
       if (ctx.gateway.ok) return { tone: "ok", note: `เครดิตเหลือ $${ctx.gateway.data!.balance.toFixed(2)}` };
       if (ctx.gateway.configured) return { tone: "warn", note: "เช็คเครดิตไม่ได้" };
       const s = has(ctx, "AI_GATEWAY_API_KEY");

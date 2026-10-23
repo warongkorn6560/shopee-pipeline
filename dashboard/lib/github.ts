@@ -1,4 +1,6 @@
 import "server-only";
+import { blake2b } from "blakejs";
+import nacl from "tweetnacl";
 
 export const REPO = process.env.GITHUB_REPO || "warongkorn6560/shopee-pipeline";
 const API = "https://api.github.com";
@@ -160,4 +162,38 @@ export async function deleteVariable(name: string): Promise<void> {
 export async function listSecretNames(): Promise<Set<string>> {
   const data = await gh<{ secrets: { name: string }[] }>("/actions/secrets?per_page=100");
   return new Set(data.secrets.map((s) => s.name));
+}
+
+// ---------------------------------------------------------------------------
+// Writing Actions secrets: libsodium sealed box (X25519 + XSalsa20-Poly1305,
+// nonce = BLAKE2b-24(ephemeral_pk || repo_pk)), as GitHub requires.
+// ---------------------------------------------------------------------------
+function sealedBox(message: Uint8Array, recipient: Uint8Array): Uint8Array {
+  const eph = nacl.box.keyPair();
+  const nonceInput = new Uint8Array(64);
+  nonceInput.set(eph.publicKey, 0);
+  nonceInput.set(recipient, 32);
+  const nonce = blake2b(nonceInput, undefined, 24);
+  const boxed = nacl.box(message, nonce, recipient, eph.secretKey);
+  const out = new Uint8Array(32 + boxed.length);
+  out.set(eph.publicKey, 0);
+  out.set(boxed, 32);
+  return out;
+}
+
+export async function setSecret(name: string, value: string): Promise<void> {
+  const { key_id, key } = await gh<{ key_id: string; key: string }>("/actions/secrets/public-key");
+  const sealed = sealedBox(new TextEncoder().encode(value), Buffer.from(key, "base64"));
+  await gh(`/actions/secrets/${name}`, {
+    method: "PUT",
+    body: JSON.stringify({ encrypted_value: Buffer.from(sealed).toString("base64"), key_id }),
+  });
+}
+
+export async function deleteSecret(name: string): Promise<void> {
+  try {
+    await gh(`/actions/secrets/${name}`, { method: "DELETE" });
+  } catch (e) {
+    if (!(e instanceof GitHubError && e.status === 404)) throw e;
+  }
 }

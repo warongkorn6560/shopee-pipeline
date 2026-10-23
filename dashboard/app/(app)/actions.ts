@@ -234,6 +234,45 @@ export async function reviewVideo(
   return { ok: true, message: opts.requeue ? `${label} · ส่งกลับเข้าคิวให้ทำใหม่` : label };
 }
 
+export async function saveClaudeKey(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  await requireSession();
+  const key = String(form.get("key") ?? "").trim();
+  if (!/^sk-ant-[A-Za-z0-9_-]{20,}$/.test(key)) {
+    return { ok: false, message: "รูปแบบ key ไม่ถูกต้อง — Claude API key ขึ้นต้นด้วย sk-ant-" };
+  }
+  try {
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    await new Anthropic({ apiKey: key, maxRetries: 1 }).models.list({ limit: 1 });
+  } catch (e) {
+    const status = (e as { status?: number }).status;
+    return {
+      ok: false,
+      message: status === 401 ? "Anthropic ปฏิเสธ key นี้ (401) — ตรวจว่าคัดลอกครบ" : `ตรวจ key ไม่ผ่าน: ${status ?? "เชื่อมต่อไม่ได้"}`,
+    };
+  }
+  try {
+    await gh.setSecret("ANTHROPIC_API_KEY", key);
+  } catch (e) {
+    if (e instanceof gh.GitHubError && (e.status === 403 || e.status === 404)) {
+      return { ok: false, message: "GitHub token ยังไม่มีสิทธิ์เขียน secret — แก้ token: Secrets → Read and write แล้วลองใหม่" };
+    }
+    return fail(e, "บันทึก key ไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: "บันทึก Claude key แล้ว — รอบถัดไปทั้งสอง flow จะใช้ Claude เขียนบท" };
+}
+
+export async function removeClaudeKey(): Promise<ActionResult> {
+  await requireSession();
+  try {
+    await gh.deleteSecret("ANTHROPIC_API_KEY");
+  } catch (e) {
+    return fail(e, "ลบ key ไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: "ลบ Claude key แล้ว — กลับไปใช้ AI สำรอง" };
+}
+
 export async function logout(): Promise<void> {
   (await cookies()).delete(SESSION_COOKIE);
   redirect("/login");

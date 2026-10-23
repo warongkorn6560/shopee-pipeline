@@ -47,15 +47,15 @@ export const FLOWS: FlowDef[] = [
     ],
     steps: [
       { key: "input", label: "สินค้า", tool: "คิวสินค้าในเว็บนี้", service: "store" },
-      { key: "script", label: "บทขาย", tool: "Gemini via AI Gateway", service: "gateway" },
+      { key: "script", label: "บทขาย", tool: "Claude (หรือ Gemini ถ้ายังไม่ใส่ key)", service: "gateway" },
       { key: "visual", label: "ภาพ", tool: "รูปสินค้า + Ken Burns", service: "local" },
-      { key: "voice", label: "เสียง", tool: "ElevenLabs", service: "elevenlabs" },
+      { key: "voice", label: "เสียง", tool: "ElevenLabs v4 · เสียงคนไทย", service: "elevenlabs" },
       { key: "render", label: "ตัดต่อ", tool: "FFmpeg + คำบรรยายไทย", service: "ffmpeg" },
       { key: "deliver", label: "ส่ง", tool: "หน้ารีวิว + Telegram", service: "telegram" },
     ],
     publishVar: "PUBLISH_MODE",
     queueTab: "Inbox",
-    costNote: "$0 ต่อคลิป (เสียงใช้เครดิต ElevenLabs ที่จ่ายรายปีแล้ว)",
+    costNote: "≈ $0.03 ต่อคลิปเมื่อใช้ Claude (เสียงใช้เครดิต ElevenLabs ที่จ่ายรายปีแล้ว)",
   },
   {
     id: "story",
@@ -70,15 +70,15 @@ export const FLOWS: FlowDef[] = [
     ],
     steps: [
       { key: "input", label: "หัวข้อ", tool: "คิวหัวข้อในเว็บนี้", service: "store" },
-      { key: "script", label: "บทบรรยาย", tool: "GPT-4.1 mini + Wikipedia", service: "gateway" },
-      { key: "visual", label: "ภาพ", tool: "แผนที่จริงจาก Wikimedia", service: "wikimedia" },
-      { key: "voice", label: "เสียง", tool: "ElevenLabs (จับเวลาตามคำ)", service: "elevenlabs" },
-      { key: "render", label: "ตัดต่อ", tool: "FFmpeg + ดนตรีประกอบ", service: "ffmpeg" },
+      { key: "script", label: "บทและช็อต", tool: "Claude + Wikipedia", service: "gateway" },
+      { key: "visual", label: "แผนที่", tool: "ดาวเทียม Sentinel-2 + OpenStreetMap", service: "wikimedia" },
+      { key: "voice", label: "เสียง", tool: "ElevenLabs v4 · เสียงคนไทย", service: "elevenlabs" },
+      { key: "render", label: "ตัดต่อ", tool: "กล้องบินแผนที่ + ดนตรี + เสียงเปลี่ยนฉาก", service: "ffmpeg" },
       { key: "deliver", label: "ส่ง", tool: "หน้ารีวิว + Telegram", service: "telegram" },
     ],
     publishVar: "STORY_PUBLISH_MODE",
     queueTab: "Stories",
-    costNote: "≈ $0.005 ต่อคลิป (หักจากเครดิตฟรีของ AI Gateway)",
+    costNote: "≈ $0.10 ต่อคลิปเมื่อใช้ Claude Opus 5.5 (คีย์ของคุณ)",
   },
 ];
 
@@ -158,7 +158,7 @@ export const VARIABLES: VarDef[] = [
   {
     name: "STORY_LLM_MODEL", label: "โมเดลเขียนบทเรื่องเล่า", scope: "story", kind: "select",
     workflowDefault: "openai/gpt-4.1-mini",
-    help: "รุ่นที่ใช้ได้กับ AI Gateway free tier · ถ้ารุ่นที่เลือกถูกปฏิเสธ จะถอยไปใช้รุ่นพื้นฐานเอง",
+    help: "ใช้เฉพาะตอนที่ยังไม่ได้ใส่ Claude key — รุ่นที่ AI Gateway free tier เรียกได้",
     options: [
       { value: "openai/gpt-4.1-mini", label: "GPT-4.1 mini", hint: "แนะนำ" },
       { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
@@ -169,11 +169,52 @@ export const VARIABLES: VarDef[] = [
   {
     name: "LLM_MODEL", label: "โมเดลเขียนบทขาย", scope: "shopee", kind: "select",
     workflowDefault: "google/gemini-2.5-flash-lite",
-    help: "ใช้เขียนบทคลิปขายของ Flow A",
+    help: "ใช้เฉพาะตอนที่ยังไม่ได้ใส่ Claude key (Flow A)",
     options: [
       { value: "google/gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite", hint: "ค่าเริ่มต้น" },
       { value: "openai/gpt-4.1-mini", label: "GPT-4.1 mini" },
       { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+    ],
+  },
+  {
+    name: "CLAUDE_MODEL", label: "โมเดล Claude", scope: "shared", kind: "select",
+    workflowDefault: "claude-opus-5-5",
+    help: "ใช้เขียนบท วางช็อตแผนที่ และคิดหัวข้อ ทั้งสอง flow เมื่อใส่ Claude key แล้ว",
+    options: [
+      { value: "claude-opus-5-5", label: "Claude Opus 5.5", hint: "คุณภาพสูงสุด ≈ $0.10/คลิป" },
+      { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5", hint: "≈ $0.05/คลิป" },
+      { value: "claude-haiku-5-5", label: "Claude Haiku 5.5", hint: "ประหยัดสุด" },
+    ],
+  },
+  {
+    name: "STORY_VOICE_ID", label: "เสียงผู้บรรยาย", scope: "story", kind: "select",
+    workflowDefault: "jucSqawHKM1rUNf78oZQ",
+    help: "เสียงคนไทยจาก ElevenLabs Voice Library (โมเดล eleven_v4) — กดฟังตัวอย่างได้ที่การ์ด AI & เสียง",
+    options: [
+      { value: "jucSqawHKM1rUNf78oZQ", label: "Duang — ผู้ชาย เล่าเรื่องเสียงทุ้ม", hint: "แนะนำ" },
+      { value: "7XW5JhaNn90bnFojQ5DA", label: "Mali — ผู้หญิง ชัด เป็นธรรมชาติ" },
+      { value: "yq05eeRaHPMGuWTVpqeP", label: "Tonce — ผู้ชาย เป็นกันเอง" },
+    ],
+  },
+  {
+    name: "STORY_TARGET_SECONDS", label: "ความยาวคลิป", scope: "story", kind: "segmented",
+    workflowDefault: "75",
+    help: "เพจแผนที่ที่ยอดวิวสูงทำคลิปยาว 1–2 นาที · ยาวขึ้น = ใช้เครดิตเสียงมากขึ้น (~13 ตัวอักษร/วินาที)",
+    options: [
+      { value: "45", label: "45 วิ" },
+      { value: "60", label: "60 วิ" },
+      { value: "75", label: "75 วิ" },
+      { value: "90", label: "90 วิ" },
+    ],
+  },
+  {
+    name: "SHOP_VOICE_ID", label: "เสียงพากย์", scope: "shopee", kind: "select",
+    workflowDefault: "7XW5JhaNn90bnFojQ5DA",
+    help: "เสียงคนไทยจาก ElevenLabs Voice Library (โมเดล eleven_v4)",
+    options: [
+      { value: "7XW5JhaNn90bnFojQ5DA", label: "Mali — ผู้หญิง ชัด เป็นธรรมชาติ", hint: "แนะนำ" },
+      { value: "yq05eeRaHPMGuWTVpqeP", label: "Tonce — ผู้ชาย เป็นกันเอง" },
+      { value: "jucSqawHKM1rUNf78oZQ", label: "Duang — ผู้ชาย เสียงทุ้ม" },
     ],
   },
 ];
@@ -185,12 +226,13 @@ export interface SecretDef {
   name: string;
   purpose: string;
   flows: FlowId[];
-  need: "required" | "auto";
+  need: "required" | "auto" | "recommended";
 }
 
 export const SECRETS: SecretDef[] = [
   { name: "PIPELINE_API_KEY", purpose: "ให้ pipeline คุยกับเว็บนี้ (คิว + ส่งวิดีโอรีวิว)", flows: ["shopee", "story"], need: "required" },
-  { name: "AI_GATEWAY_API_KEY", purpose: "เขียนบทด้วย AI", flows: ["shopee", "story"], need: "required" },
+  { name: "ANTHROPIC_API_KEY", purpose: "Claude เขียนบทและวางช็อต (ใส่ที่การ์ด AI & เสียง)", flows: ["shopee", "story"], need: "recommended" },
+  { name: "AI_GATEWAY_API_KEY", purpose: "AI สำรองเมื่อไม่มี Claude key", flows: ["shopee", "story"], need: "required" },
   { name: "ELEVENLABS_API_KEY", purpose: "เสียงพากย์ไทย", flows: ["shopee", "story"], need: "required" },
   { name: "TELEGRAM_BOT_TOKEN", purpose: "ส่งวิดีโอให้ตรวจ", flows: ["shopee", "story"], need: "required" },
   { name: "TELEGRAM_CHAT_ID", purpose: "ห้องแชตที่รับวิดีโอ", flows: ["shopee", "story"], need: "required" },

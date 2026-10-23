@@ -16,7 +16,7 @@ Production: https://pipeline-dashboard-seven-kappa.vercel.app (Vercel project `p
 | Name | Needed for |
 |---|---|
 | `DASHBOARD_PASSWORD`, `SESSION_SECRET` (32+ chars) | sign-in |
-| `GITHUB_TOKEN` | run / schedule / settings — fine-grained PAT on this repo only: Actions RW, Variables RW, Secrets R, Contents R |
+| `GITHUB_TOKEN` | run / schedule / settings — fine-grained PAT on this repo only: Actions RW, Variables RW, Secrets RW (to save the Claude key), Contents R |
 | `GOOGLE_SHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON` (full JSON) | queues |
 | `ELEVENLABS_API_KEY`, `AI_GATEWAY_API_KEY`, `TELEGRAM_BOT_TOKEN` | live health gauges |
 

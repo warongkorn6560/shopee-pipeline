@@ -3,6 +3,7 @@ import { Suspense, type ReactNode } from "react";
 import { ArrowUpRight, KeyRound } from "lucide-react";
 import { RunButton, ScheduleToggle } from "@/components/controls";
 import { Card, CardHeader, FlowTag, InlineError, PageHeader, Pill, Skeleton, StateIcon, Tally, cx } from "@/components/ui";
+import { ClaudeKeyForm, VoiceSample } from "@/components/ai-card";
 import { VarField } from "@/components/var-field";
 import { requireSession } from "@/lib/dal";
 import { effective, getSecrets, getVariables, getWorkflows } from "@/lib/data";
@@ -18,6 +19,9 @@ export default function SettingsPage() {
       <PageHeader title="ตั้งค่า" subtitle="ค่าที่แก้ที่นี่จะถูกเก็บเป็น GitHub Actions Variables และมีผลตั้งแต่รันครั้งถัดไป" />
       <Suspense fallback={<Skeleton className="h-40 rounded-2xl" />}>
         <Connections />
+      </Suspense>
+      <Suspense fallback={<Skeleton className="h-72 rounded-2xl" />}>
+        <AiAndVoice />
       </Suspense>
       <div className="grid gap-5 xl:grid-cols-2">
         {FLOWS.map((f) => (
@@ -81,7 +85,7 @@ async function Connections() {
             เปิดหน้า{" "}
             <a
               className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-              href="https://github.com/settings/personal-access-tokens/new?name=Pipeline%20Control&description=Dashboard%20for%20shopee-pipeline&expires_in=366&actions=write&variables=write&secrets=read&contents=read"
+              href="https://github.com/settings/personal-access-tokens/new?name=Pipeline%20Control&description=Dashboard%20for%20shopee-pipeline&expires_in=366&actions=write&variables=write&secrets=write&contents=read"
               target="_blank"
               rel="noreferrer"
             >
@@ -89,12 +93,59 @@ async function Connections() {
             </a>
           </li>
           <li>Repository access → <b className="text-ink">Only select repositories</b> → เลือก <Code>{REPO.split("/")[1]}</Code></li>
-          <li>Permissions: <Code>Actions: Read and write</Code> <Code>Variables: Read and write</Code> <Code>Secrets: Read-only</Code> <Code>Contents: Read-only</Code></li>
+          <li>Permissions: <Code>Actions: Read and write</Code> <Code>Variables: Read and write</Code> <Code>Secrets: Read and write</Code> <span className="text-ink-3">(สำหรับบันทึก Claude key)</span> <Code>Contents: Read-only</Code></li>
           <li>กด Generate แล้วคัดลอก token</li>
           <li>
             ใน Vercel → โปรเจกต์ <Code>pipeline-dashboard</Code> → Settings → Environment Variables → เพิ่ม <Code>GITHUB_TOKEN</Code> แล้ว Redeploy
           </li>
         </ol>
+      </Card>
+    </div>
+  );
+}
+
+const VOICES = [
+  { id: "jucSqawHKM1rUNf78oZQ", label: "Duang — ผู้ชาย เล่าเรื่องเสียงทุ้ม" },
+  { id: "7XW5JhaNn90bnFojQ5DA", label: "Mali — ผู้หญิง ชัด เป็นธรรมชาติ" },
+  { id: "yq05eeRaHPMGuWTVpqeP", label: "Tonce — ผู้ชาย เป็นกันเอง" },
+];
+
+async function AiAndVoice() {
+  await requireSession();
+  const gh = githubConfigured();
+  const [secrets, vars] = gh ? await Promise.all([getSecrets(), getVariables()]) : [null, null];
+  const hasKey = Boolean(secrets?.ok && secrets.value.has("ANTHROPIC_API_KEY"));
+  const values = vars?.ok ? vars.value : null;
+  const modelDef = VARIABLES.find((v) => v.name === "CLAUDE_MODEL")!;
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      <Card>
+        <CardHeader
+          eyebrow="สมองของทั้งสอง flow"
+          title="Claude"
+          action={hasKey ? <Pill tone="ok">ใช้ Claude อยู่</Pill> : <Pill tone="warn">ยังไม่ใส่ key · ใช้ AI สำรอง</Pill>}
+        />
+        <div className="space-y-4 px-5 pt-3 pb-1">
+          <p className="text-sm text-ink-2">
+            เมื่อใส่ key แล้ว Claude จะเขียนบท วางช็อตแผนที่ (ซูมไปไหน วาดเส้นอะไร ปักหมุดตรงไหน) และคิดหัวข้อใหม่
+            โดยอ้างอิงข้อมูลจาก Wikipedia ทุกครั้ง
+          </p>
+          <ClaudeKeyForm hasKey={hasKey} disabled={!gh} />
+        </div>
+        <div className="divide-y divide-line">
+          <VarField key={`CLAUDE_MODEL:${effective(values, "CLAUDE_MODEL")}`} def={modelDef}
+            current={effective(values, "CLAUDE_MODEL")} isSet={Boolean(values?.CLAUDE_MODEL)} disabled={!gh} />
+        </div>
+      </Card>
+      <Card>
+        <CardHeader eyebrow="ElevenLabs · eleven_v4" title="เสียงพากย์ภาษาไทย" />
+        <div className="space-y-3 px-5 pt-3 pb-5">
+          <p className="text-sm text-ink-2">
+            เปลี่ยนจากโมเดลเดิมที่ไม่รองรับภาษาไทย (ถอดเสียงกลับได้ถูกแค่ 65%) มาเป็น eleven_v4 กับเสียงคนไทยจริง (ถอดเสียงกลับได้ 100%)
+            เลือกเสียงของแต่ละ flow ได้ในการ์ดด้านล่าง
+          </p>
+          {VOICES.map((v) => <VoiceSample key={v.id} id={v.id} label={v.label} />)}
+        </div>
       </Card>
     </div>
   );
@@ -157,7 +208,7 @@ async function Workflows() {
   );
 }
 
-const NEED_LABEL = { required: "จำเป็น", auto: "โหมดโพสต์อัตโนมัติ" } as const;
+const NEED_LABEL = { required: "จำเป็น", auto: "โหมดโพสต์อัตโนมัติ", recommended: "แนะนำ" } as const;
 
 async function Secrets() {
   await requireSession();
