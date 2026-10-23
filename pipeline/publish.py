@@ -45,20 +45,23 @@ def telegram_send_video(video: Path, text: str) -> bool:
 # ---------------------------------------------------------------------------
 # Flow A — Shopee affiliate
 # ---------------------------------------------------------------------------
-def caption_block(plan, product) -> str:
-    tags = " ".join(plan.hashtags)
-    return (
+def social_caption(plan) -> str:
+    """The text to paste when posting (also shown with a copy button in the dashboard)."""
+    return f"{plan.caption}\nกดลิงก์ในโปรไฟล์เลย 👆\n{' '.join(plan.hashtags)}".strip()
+
+
+def caption_block(plan, product, review_url: str = "") -> str:
+    text = (
         f"✅ NEW VIDEO READY\n\n"
-        f"{plan.caption}\n"
-        f"กดลิงค์ในโปรไฟล์เลย 👆\n"
-        f"{tags}\n\n"
+        f"{social_caption(plan)}\n\n"
         f"📦 {product.name[:80]}\n"
         f"🔗 {product.affiliate_url}"
     )
+    return text + (f"\n\n▶️ ตรวจในเว็บ: {review_url}" if review_url else "")
 
 
-def send_to_telegram(video: Path, plan, product) -> bool:
-    return telegram_send_video(video, caption_block(plan, product))
+def send_to_telegram(video: Path, plan, product, review_url: str = "") -> bool:
+    return telegram_send_video(video, caption_block(plan, product, review_url))
 
 
 def auto_post(video: Path, plan, product) -> dict:
@@ -92,9 +95,9 @@ def _safe(fn, *args) -> dict:
         return {"error": f"{type(exc).__name__}: {str(exc)[:300]}"}
 
 
-def publish(video: Path, plan, product, mode: str | None = None) -> dict:
+def publish(video: Path, plan, product, mode: str | None = None, review_url: str = "") -> dict:
     mode = mode or PUBLISH_MODE
-    result = {"telegram": send_to_telegram(video, plan, product)}
+    result = {"telegram": send_to_telegram(video, plan, product, review_url)}
     if mode == "auto":
         result["upload_post"] = _safe(auto_post, video, plan, product)
         caption = plan.caption + " " + " ".join(plan.hashtags) + "\n\n🔗 ดูลิงก์ในโปรไฟล์ได้เลย 👆"

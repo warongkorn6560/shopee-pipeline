@@ -42,6 +42,7 @@ _ENV_KEYS = (
     "STORY_NICHE", "STORY_SERIES_NAME", "STORY_IMAGE_PROVIDER", "STORY_IMAGE_MODEL",
     "STORY_AUTO_TOPIC", "STORY_VOICE_ID", "STORY_LLM_MODEL", "STORY_MAX_AI_IMAGES",
     "GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
+    "DASHBOARD_URL", "PIPELINE_API_KEY",
 )
 
 
@@ -121,6 +122,12 @@ def estimate_video_cost() -> float:
 
 
 # ---------------------------------------------------------------------------
+# Platform (the dashboard is the queue + review store)
+# ---------------------------------------------------------------------------
+DASHBOARD_URL = _get("DASHBOARD_URL", "https://pipeline-dashboard-seven-kappa.vercel.app").rstrip("/")
+
+
+# ---------------------------------------------------------------------------
 # Publishing
 # ---------------------------------------------------------------------------
 # "review"  -> send MP4 to Telegram only; a human posts it (safe default)
@@ -131,16 +138,8 @@ META_GRAPH_VERSION = _get("META_GRAPH_VERSION", "v23.0")
 
 
 # ---------------------------------------------------------------------------
-# Flow A source sheet layout (Inbox tab) — column indexes
+# Flow A queue statuses (shared with the dashboard)
 # ---------------------------------------------------------------------------
-# A Date | B Name | C Price | D Commission% | E Sales | F Affiliate URL
-# G Niche | H Status | I Notes | J Image URL | K TikTok | L Instagram | M Shopee Video
-SHEET_RANGE = "Inbox!A:M"
-COL = {
-    "date": 0, "name": 1, "price": 2, "commission": 3, "sales": 4,
-    "affiliate_url": 5, "niche": 6, "status": 7, "notes": 8, "image_url": 9,
-    "tiktok": 10, "instagram": 11, "shopee_video": 12,
-}
 STATUS_READY = "Ready"
 STATUS_DONE = "Posted"
 STATUS_FAILED = "Failed"
@@ -170,12 +169,11 @@ STORY_VOICE_ID = _get("STORY_VOICE_ID", ELEVENLABS_VOICE_ID)
 STORY_LLM_MODEL = _get("STORY_LLM_MODEL", "openai/gpt-4.1-mini")
 STORY_ACCENT = "#F2B544"   # map-gold, used for the series badge
 STORY_INK = "#0E2A3B"      # deep chart-ink, used for text cards
-STORY_TAB = "Stories"
 
 
 @dataclass
 class Product:
-    row_number: int
+    ref: str            # queue id in the dashboard (or csv-<row> offline)
     name: str
     price_thb: str
     commission_pct: str

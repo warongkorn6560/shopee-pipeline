@@ -37,11 +37,6 @@ jobs:
       - name: Python deps
         run: pip install -r requirements.txt
 
-      - name: Write Google service account
-        env:
-          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: printf '%s' "$SA_JSON" > scraper/service-account.json
-
       - name: Generate + deliver one video
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
@@ -52,8 +47,8 @@ jobs:
           TTS_PROVIDER: elevenlabs
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: scraper/service-account.json
+          PIPELINE_API_KEY: ${{ secrets.PIPELINE_API_KEY }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL || 'https://pipeline-dashboard-seven-kappa.vercel.app' }}
           UPLOAD_POST_API_KEY: ${{ secrets.UPLOAD_POST_API_KEY }}
           UPLOAD_POST_USER: ${{ secrets.UPLOAD_POST_USER }}
           TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
@@ -62,13 +57,10 @@ jobs:
           META_APP_ID: ${{ secrets.META_APP_ID }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
-          # Renderer: local = product photo + FFmpeg ($0). fal = Flux/Kling (~$1.40, needs fal credits)
-          VIDEO_PROVIDER: ${{ vars.VIDEO_PROVIDER || 'local' }}
-          FAL_KEY: ${{ secrets.FAL_KEY }}
-          # review = Telegram only (safe default). auto = also post to connected socials.
+          # review = dashboard review page + Telegram (safe default). auto = also post to connected socials.
           PUBLISH_MODE: ${{ vars.PUBLISH_MODE || 'review' }}
           COST_CAP_USD: "2.00"
-        run: python -m pipeline.run --source sheets
+        run: python -m pipeline.run
 
       - name: Upload artifact (MP4 + spend log)
         if: always()
