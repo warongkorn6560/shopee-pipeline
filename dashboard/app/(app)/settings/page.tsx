@@ -8,7 +8,7 @@ import { requireSession } from "@/lib/dal";
 import { effective, getSecrets, getVariables, getWorkflows } from "@/lib/data";
 import { FLOWS, SECRETS, VARIABLES, type FlowId } from "@/lib/flows";
 import { REPO, githubConfigured } from "@/lib/github";
-import { sheetsConfigured } from "@/lib/sheets";
+import { storeConfigured } from "@/lib/store";
 
 export const metadata: Metadata = { title: "ตั้งค่า" };
 
@@ -45,7 +45,8 @@ async function Connections() {
   await requireSession();
   const rows = [
     { label: "GitHub", env: "GITHUB_TOKEN", ok: githubConfigured(), use: "สั่งรัน · ตั้งค่า · ประวัติ" },
-    { label: "Google Sheet", env: "GOOGLE_SHEET_ID + GOOGLE_SERVICE_ACCOUNT_JSON", ok: sheetsConfigured(), use: "คิวสินค้าและหัวข้อ" },
+    { label: "คลังข้อมูล (Vercel Blob)", env: "BLOB_READ_WRITE_TOKEN", ok: storeConfigured(), use: "คิวงาน · วิดีโอรีวิว" },
+    { label: "Pipeline API", env: "PIPELINE_API_KEY", ok: (process.env.PIPELINE_API_KEY?.length ?? 0) >= 24, use: "ให้ GitHub Actions ส่งงานเข้าเว็บ" },
     { label: "ElevenLabs", env: "ELEVENLABS_API_KEY", ok: Boolean(process.env.ELEVENLABS_API_KEY), use: "โควตาเสียง" },
     { label: "AI Gateway", env: "AI_GATEWAY_API_KEY", ok: Boolean(process.env.AI_GATEWAY_API_KEY), use: "เครดิต AI" },
     { label: "Telegram", env: "TELEGRAM_BOT_TOKEN", ok: Boolean(process.env.TELEGRAM_BOT_TOKEN), use: "สถานะบอท" },
@@ -156,7 +157,7 @@ async function Workflows() {
   );
 }
 
-const NEED_LABEL = { required: "จำเป็น", auto: "โหมดโพสต์อัตโนมัติ", fal: "โหมด fal" } as const;
+const NEED_LABEL = { required: "จำเป็น", auto: "โหมดโพสต์อัตโนมัติ" } as const;
 
 async function Secrets() {
   await requireSession();

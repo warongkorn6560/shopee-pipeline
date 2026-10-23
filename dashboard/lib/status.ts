@@ -15,6 +15,7 @@ export interface StatusContext {
   telegram: Probe<{ username: string }>;
   readyProducts: number | null;
   readyStories: number | null;
+  pendingReviews: number | null;
   latest: Record<string, Run | undefined>; // primary workflow file → latest run
 }
 
@@ -34,7 +35,7 @@ function stepTone(flow: FlowDef, step: FlowStep, ctx: StatusContext): { tone: To
   switch (step.key) {
     case "input": {
       const ready = flow.id === "shopee" ? ctx.readyProducts : ctx.readyStories;
-      if (ready === null) return { tone: "idle", note: "ยังไม่ได้เชื่อมชีตกับ dashboard" };
+      if (ready === null) return { tone: "idle", note: "ยังไม่ได้เชื่อมคลังข้อมูล" };
       if (ready > 0) return { tone: "ok", note: `พร้อม ${ready} รายการ` };
       if (flow.id === "story" && value(ctx, "STORY_AUTO_TOPIC", "on") === "on") {
         return { tone: "ok", note: "คิวว่าง · AI คิดหัวข้อให้" };
@@ -49,9 +50,7 @@ function stepTone(flow: FlowDef, step: FlowStep, ctx: StatusContext): { tone: To
     }
     case "visual": {
       if (flow.id === "shopee") {
-        return value(ctx, "VIDEO_PROVIDER", "local") === "fal"
-          ? { tone: "bad", note: "โหมด fal · ไม่มีเครดิต" }
-          : { tone: "ok", note: "รูปสินค้า · ฟรี" };
+        return { tone: "ok", note: "รูปสินค้าจริง · ฟรี" };
       }
       const p = value(ctx, "STORY_IMAGE_PROVIDER", "auto");
       if (p === "gateway") return { tone: "warn", note: "ภาพ AI ต้องเติมเครดิต" };
@@ -79,8 +78,7 @@ function stepTone(flow: FlowDef, step: FlowStep, ctx: StatusContext): { tone: To
         if (missing.length) return { tone: "warn", note: `auto แต่ยังไม่เชื่อม ${flow.id === "story" ? "Facebook" : "TikTok"}` };
         return { tone: "ok", note: "โพสต์อัตโนมัติ" };
       }
-      if (ctx.telegram.ok) return { tone: "ok", note: `ตรวจก่อน · @${ctx.telegram.data!.username}` };
-      return { tone: "ok", note: "ตรวจก่อนใน Telegram" };
+      return { tone: "ok", note: "ตรวจในเว็บ + Telegram" };
     }
   }
 }
@@ -129,6 +127,12 @@ export function attention(ctx: StatusContext): Attention[] {
         });
       }
     }
+  }
+  if (ctx.pendingReviews) {
+    out.push({
+      tone: "warn", title: `มีวิดีโอรอตรวจ ${ctx.pendingReviews} คลิป`,
+      detail: "ดู กดผ่าน/ไม่ผ่าน และคัดลอกแคปชันไปโพสต์ได้ที่หน้ารีวิว", href: "/review", cta: "ไปรีวิว",
+    });
   }
   if (ctx.readyProducts === 0) {
     out.push({

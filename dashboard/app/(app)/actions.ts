@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/dal";
 import { VARIABLES, WORKFLOW_FILES } from "@/lib/flows";
 import * as gh from "@/lib/github";
-import * as sheets from "@/lib/sheets";
+import { fillImages, parseAffiliateCsv, productImage } from "@/lib/shopee";
+import * as store from "@/lib/store";
 import { SESSION_COOKIE } from "@/lib/session";
 
 export interface ActionResult {
@@ -78,23 +79,43 @@ export async function resetVariable(name: string): Promise<ActionResult> {
   return { ok: true, message: "กลับไปใช้ค่าเริ่มต้นแล้ว" };
 }
 
-const STATUSES = {
-  Inbox: ["Ready", "Hold", "New"],
-  Stories: ["Ready", "Hold"],
-} as const;
+const PRODUCT_STATUSES = ["Ready", "Hold", "New"] as const;
+const STORY_STATUSES = ["Ready", "Hold"] as const;
 
-export async function setQueueStatus(tab: "Inbox" | "Stories", row: number, status: string): Promise<ActionResult> {
+export async function setQueueStatus(tab: "products" | "stories", id: string, status: string): Promise<ActionResult> {
   await requireSession();
-  if (!(tab in STATUSES) || !(STATUSES[tab] as readonly string[]).includes(status) || !(row >= 2)) {
-    return { ok: false, message: "คำสั่งไม่ถูกต้อง" };
-  }
+  const allowed: readonly string[] = tab === "products" ? PRODUCT_STATUSES : tab === "stories" ? STORY_STATUSES : [];
+  if (!allowed.includes(status)) return { ok: false, message: "คำสั่งไม่ถูกต้อง" };
   try {
-    await sheets.setStatus(tab, row, status);
+    const found = await store.mutate(tab, (items) => {
+      const it = (items as { id: string; status: string; updatedAt: string; lastError?: string }[]).find((x) => x.id === id);
+      if (!it) return false;
+      it.status = status;
+      it.updatedAt = store.now();
+      if (status === "Ready") it.lastError = undefined;
+      return true;
+    });
+    if (!found) return { ok: false, message: "ไม่พบรายการนี้แล้ว" };
   } catch (e) {
-    return fail(e, "อัปเดตชีตไม่สำเร็จ");
+    return fail(e, "อัปเดตไม่สำเร็จ");
   }
   refresh();
   return { ok: true, message: status === "Ready" ? "ส่งเข้าคิวแล้ว" : status === "Hold" ? "พักไว้แล้ว" : "อัปเดตแล้ว" };
+}
+
+export async function deleteQueueItem(tab: "products" | "stories", id: string): Promise<ActionResult> {
+  await requireSession();
+  if (tab !== "products" && tab !== "stories") return { ok: false, message: "คำสั่งไม่ถูกต้อง" };
+  try {
+    await store.mutate(tab, (items) => {
+      const i = items.findIndex((x) => x.id === id);
+      if (i >= 0) items.splice(i, 1);
+    });
+  } catch (e) {
+    return fail(e, "ลบไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: "ลบแล้ว" };
 }
 
 function isHttpUrl(s: string) {
@@ -111,19 +132,55 @@ export async function addProduct(_: ActionResult | null, form: FormData): Promis
   const name = String(form.get("name") ?? "").trim();
   const price = String(form.get("price") ?? "").trim();
   const url = String(form.get("url") ?? "").trim();
-  const image = String(form.get("image") ?? "").trim();
+  let image = String(form.get("image") ?? "").trim();
   const notes = String(form.get("notes") ?? "").trim();
   if (!name || name.length > 200) return { ok: false, message: "กรอกชื่อสินค้า" };
   if (!isHttpUrl(url)) return { ok: false, message: "ลิงก์ affiliate ต้องเป็น URL" };
   if (image && !isHttpUrl(image)) return { ok: false, message: "ลิงก์รูปต้องเป็น URL" };
   if (price && !/^\d+(\.\d+)?$/.test(price)) return { ok: false, message: "ราคาเป็นตัวเลขเท่านั้น" };
+  if (!image) image = await productImage(url);
   try {
-    await sheets.addProduct({ name, price, url, image, notes: notes.slice(0, 300) });
+    const dup = await store.mutate("products", (items) => {
+      if (items.some((p) => p.url === url)) return true;
+      items.push({
+        id: store.newId(), name, price, commission: "", sales: "", url, image, notes: notes.slice(0, 300),
+        status: "Ready", source: "manual", createdAt: store.now(), updatedAt: store.now(),
+      });
+      return false;
+    });
+    if (dup) return { ok: false, message: "มีสินค้าลิงก์นี้อยู่ในคิวแล้ว" };
   } catch (e) {
     return fail(e, "เพิ่มสินค้าไม่สำเร็จ");
   }
   refresh();
-  return { ok: true, message: "เพิ่มสินค้าเข้าคิวแล้ว (สถานะ Ready)" };
+  return { ok: true, message: image ? "เพิ่มเข้าคิวแล้ว (ดึงรูปสินค้าให้อัตโนมัติ)" : "เพิ่มเข้าคิวแล้ว — ไม่พบรูป จะใช้การ์ดตัวอักษรแทน" };
+}
+
+export async function importProductsCsv(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  await requireSession();
+  const file = form.get("file");
+  const ready = form.get("ready") === "on";
+  if (!(file instanceof File) || file.size === 0) return { ok: false, message: "เลือกไฟล์ CSV ก่อน" };
+  if (file.size > 2_000_000) return { ok: false, message: "ไฟล์ใหญ่เกิน 2 MB" };
+  const parsed = parseAffiliateCsv(await file.text());
+  if (!parsed.length) return { ok: false, message: "อ่านไฟล์ไม่ได้ — ใช้ไฟล์ Batch Product Links จาก Shopee Affiliate" };
+  try {
+    const existing = new Set((await store.list("products")).map((p) => p.url));
+    const fresh: store.Product[] = parsed.filter((p) => !existing.has(p.url)).map((p) => ({
+      id: store.newId(), ...p, image: "", status: ready ? "Ready" : "New", source: "csv",
+      createdAt: store.now(), updatedAt: store.now(),
+    }));
+    const images = await fillImages(fresh);
+    await store.mutate("products", (items) => void items.push(...fresh.filter((f) => !items.some((x) => x.url === f.url))));
+    refresh();
+    const skipped = parsed.length - fresh.length;
+    return {
+      ok: true,
+      message: `นำเข้า ${fresh.length} รายการ (มีรูป ${images})${skipped ? ` · ข้ามที่มีอยู่แล้ว ${skipped}` : ""}${ready ? " · เข้าคิวผลิตทันที" : " · สถานะ ใหม่ รอคุณกดเข้าคิว"}`,
+    };
+  } catch (e) {
+    return fail(e, "นำเข้าไม่สำเร็จ");
+  }
 }
 
 export async function addStory(_: ActionResult | null, form: FormData): Promise<ActionResult> {
@@ -132,12 +189,49 @@ export async function addStory(_: ActionResult | null, form: FormData): Promise<
   const angle = String(form.get("angle") ?? "").trim();
   if (!topic || topic.length > 140) return { ok: false, message: "กรอกหัวข้อ (ไม่เกิน 140 ตัวอักษร)" };
   try {
-    await sheets.addStory(topic, angle.slice(0, 300));
+    await store.mutate("stories", (items) => {
+      items.push({
+        id: store.newId(), topic, angle: angle.slice(0, 300), status: "Ready", source: "manual",
+        createdAt: store.now(), updatedAt: store.now(),
+      });
+    });
   } catch (e) {
     return fail(e, "เพิ่มหัวข้อไม่สำเร็จ");
   }
   refresh();
-  return { ok: true, message: "เพิ่มหัวข้อเข้าคิวแล้ว (สถานะ Ready)" };
+  return { ok: true, message: "เพิ่มหัวข้อเข้าคิวแล้ว" };
+}
+
+export async function reviewVideo(
+  id: string, decision: "approved" | "rejected" | "posted" | "review", opts: { note?: string; requeue?: boolean } = {},
+): Promise<ActionResult> {
+  await requireSession();
+  if (!["approved", "rejected", "posted", "review"].includes(decision)) return { ok: false, message: "คำสั่งไม่ถูกต้อง" };
+  try {
+    const video = await store.mutate("videos", (items) => {
+      const v = items.find((x) => x.id === id);
+      if (!v) return null;
+      v.status = decision;
+      v.reviewedAt = store.now();
+      if (opts.note !== undefined) v.note = opts.note.slice(0, 500);
+      return { ...v };
+    });
+    if (!video) return { ok: false, message: "ไม่พบวิดีโอนี้แล้ว" };
+    if (opts.requeue && video.refId) {
+      await store.mutate(video.flow === "shopee" ? "products" : "stories", (items) => {
+        const it = (items as { id: string; status: string; updatedAt: string }[]).find((x) => x.id === video.refId);
+        if (it) {
+          it.status = "Ready";
+          it.updatedAt = store.now();
+        }
+      });
+    }
+  } catch (e) {
+    return fail(e, "บันทึกผลรีวิวไม่สำเร็จ");
+  }
+  refresh();
+  const label = { approved: "ผ่านแล้ว", rejected: "ไม่ผ่าน", posted: "บันทึกว่าโพสต์แล้ว", review: "ย้ายกลับไปรอตรวจ" }[decision];
+  return { ok: true, message: opts.requeue ? `${label} · ส่งกลับเข้าคิวให้ทำใหม่` : label };
 }
 
 export async function logout(): Promise<void> {

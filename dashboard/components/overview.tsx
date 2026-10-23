@@ -8,7 +8,6 @@ import { getRecentRuns, getRunsFor, effective } from "@/lib/data";
 import { FLOWS, VARIABLES, flowById, type FlowId, type StepKey } from "@/lib/flows";
 import { bytes, nextDailyRun, number, relative, thaiDate, thaiDateTime, timecode } from "@/lib/format";
 import * as gh from "@/lib/github";
-import { sheetUrl } from "@/lib/sheets";
 import { attention, runLabel, runTone, stepStatuses } from "@/lib/status";
 import { AutoRefresh, RunButton, ScheduleToggle } from "./controls";
 import { Card, CardHeader, FlowTag, InlineError, Pill, Skeleton, StateIcon, Tally, cx, type Tone } from "./ui";
@@ -58,7 +57,7 @@ export async function FlowPanel({ flowId }: { flowId: FlowId }) {
   const isLive = latest ? latest.status !== "completed" : false;
   const stateTone: Tone = isLive ? "live" : !ctx.github ? "idle" : !wf ? "warn" : enabled ? "ok" : "idle";
   const stateLabel = isLive ? "ON AIR" : !ctx.github ? "ไม่ได้เชื่อม GitHub" : !wf ? "ยังไม่มี workflow" : enabled ? "รันตามเวลา" : "หยุดอยู่";
-  const visualVar = flow.id === "shopee" ? effective(ctx.vars, "VIDEO_PROVIDER") : effective(ctx.vars, "STORY_IMAGE_PROVIDER");
+  const visualVar = flow.id === "shopee" ? "รูปสินค้าจริง" : effective(ctx.vars, "STORY_IMAGE_PROVIDER");
 
   return (
     <Card as="article" className="relative overflow-hidden">
@@ -129,8 +128,7 @@ export async function FlowPanel({ flowId }: { flowId: FlowId }) {
                 { label: "ค่าใช้จ่ายโดยประมาณ", value: flow.costNote.split(" (")[0] },
               ]}
               warning={
-                flow.id === "shopee" && visualVar === "fal" ? "โหมด fal ต้องมีเครดิต fal.ai — ตอนนี้ยอดเป็น $0 รันจะล้มเหลว"
-                : mode === "auto" ? "โหมดโพสต์อัตโนมัติ — วิดีโอจะถูกโพสต์สาธารณะทันที" : undefined
+                mode === "auto" ? "โหมดโพสต์อัตโนมัติ — วิดีโอจะถูกโพสต์สาธารณะทันที" : undefined
               }
             />
             <ScheduleToggle file={primary.file} enabled={enabled} label={flow.short} />
@@ -308,7 +306,6 @@ export async function HealthPanel() {
   const ctx = await loadContext();
   const e = ctx.eleven;
   const pct = e.ok ? Math.min(e.data!.used / e.data!.limit, 1) : 0;
-  const sheet = sheetUrl();
   return (
     <Card className="h-full">
       <CardHeader eyebrow="สด" title="สถานะบริการ" />
@@ -349,10 +346,10 @@ export async function HealthPanel() {
             value={ctx.telegram.ok ? `@${ctx.telegram.data!.username}` : ctx.telegram.configured ? "token ใช้ไม่ได้" : "ไม่ได้เชื่อม"}
           />
           <HealthRow
-            label="Google Sheet"
+            label="คลังข้อมูล"
             tone={ctx.readyProducts !== null ? "ok" : "idle"}
-            value={ctx.readyProducts !== null ? `Ready ${ctx.readyProducts} · หัวข้อ ${ctx.readyStories ?? 0}` : "ไม่ได้เชื่อม"}
-            href={sheet ?? undefined}
+            value={ctx.readyProducts !== null ? `คิว ${ctx.readyProducts} · หัวข้อ ${ctx.readyStories ?? 0} · รอรีวิว ${ctx.pendingReviews ?? 0}` : "ไม่ได้เชื่อม"}
+            href="/queue"
           />
           <HealthRow
             label="GitHub"
@@ -375,7 +372,7 @@ function HealthRow({ label, tone, value, href }: { label: string; tone: Tone; va
   return (
     <li>
       {href ? (
-        <a href={href} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-surface-2/60">{body}</a>
+        <a href={href} {...(href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-surface-2/60">{body}</a>
       ) : (
         <div className="flex items-center justify-between gap-3 px-4 py-2.5">{body}</div>
       )}

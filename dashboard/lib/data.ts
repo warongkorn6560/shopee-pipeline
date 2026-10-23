@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { VARIABLES } from "./flows";
 import * as gh from "./github";
-import * as sheets from "./sheets";
+import * as store from "./store";
 
 export type Settled<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -20,8 +20,9 @@ export const getVariables = cache(() => settle(gh.listVariables()));
 export const getSecrets = cache(() => settle(gh.listSecretNames()));
 export const getRecentRuns = cache(() => settle(gh.listRuns(15)));
 export const getRunsFor = cache((file: string) => settle(gh.listRunsFor(file, 5)));
-export const getProducts = cache(() => settle(sheets.getProducts()));
-export const getStories = cache(() => settle(sheets.getStories()));
+export const getProducts = cache(() => settle(store.list("products")));
+export const getStories = cache(() => settle(store.list("stories")));
+export const getVideos = cache(() => settle(store.list("videos")));
 
 export function effective(vars: Record<string, { value: string }> | null, name: string): string {
   const def = VARIABLES.find((v) => v.name === name);

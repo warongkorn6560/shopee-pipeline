@@ -13,7 +13,7 @@ export interface FlowStep {
 }
 
 export type ServiceKey =
-  | "sheets" | "gateway" | "wikimedia" | "local" | "elevenlabs" | "ffmpeg" | "telegram" | "fal";
+  | "store" | "gateway" | "wikimedia" | "local" | "elevenlabs" | "ffmpeg" | "telegram";
 
 export interface WorkflowRef {
   file: string;
@@ -43,16 +43,15 @@ export const FLOWS: FlowDef[] = [
     short: "Flow A",
     tagline: "คลิปขายสินค้าจากรูปจริง + เสียงพากย์ไทย",
     workflows: [
-      { file: "scrape.yml", role: "ดึงสินค้าเข้าชีต", cron: "30 1 * * *", scheduleLabel: "ทุกวัน 08:30 น." },
       { file: "daily-video.yml", role: "สร้างและส่งวิดีโอ", primary: true, cron: "0 2 * * *", scheduleLabel: "ทุกวัน 09:00 น." },
     ],
     steps: [
-      { key: "input", label: "สินค้า", tool: "Google Sheet · Inbox", service: "sheets" },
+      { key: "input", label: "สินค้า", tool: "คิวสินค้าในเว็บนี้", service: "store" },
       { key: "script", label: "บทขาย", tool: "Gemini via AI Gateway", service: "gateway" },
       { key: "visual", label: "ภาพ", tool: "รูปสินค้า + Ken Burns", service: "local" },
       { key: "voice", label: "เสียง", tool: "ElevenLabs", service: "elevenlabs" },
       { key: "render", label: "ตัดต่อ", tool: "FFmpeg + คำบรรยายไทย", service: "ffmpeg" },
-      { key: "deliver", label: "ส่ง", tool: "Telegram → โพสต์", service: "telegram" },
+      { key: "deliver", label: "ส่ง", tool: "หน้ารีวิว + Telegram", service: "telegram" },
     ],
     publishVar: "PUBLISH_MODE",
     queueTab: "Inbox",
@@ -70,12 +69,12 @@ export const FLOWS: FlowDef[] = [
       },
     ],
     steps: [
-      { key: "input", label: "หัวข้อ", tool: "Google Sheet · Stories", service: "sheets" },
+      { key: "input", label: "หัวข้อ", tool: "คิวหัวข้อในเว็บนี้", service: "store" },
       { key: "script", label: "บทบรรยาย", tool: "GPT-4.1 mini + Wikipedia", service: "gateway" },
       { key: "visual", label: "ภาพ", tool: "แผนที่จริงจาก Wikimedia", service: "wikimedia" },
       { key: "voice", label: "เสียง", tool: "ElevenLabs (จับเวลาตามคำ)", service: "elevenlabs" },
       { key: "render", label: "ตัดต่อ", tool: "FFmpeg + ดนตรีประกอบ", service: "ffmpeg" },
-      { key: "deliver", label: "ส่ง", tool: "Telegram → Facebook", service: "telegram" },
+      { key: "deliver", label: "ส่ง", tool: "หน้ารีวิว + Telegram", service: "telegram" },
     ],
     publishVar: "STORY_PUBLISH_MODE",
     queueTab: "Stories",
@@ -115,16 +114,6 @@ export const VARIABLES: VarDef[] = [
       { value: "auto", label: "โพสต์อัตโนมัติ", hint: "TikTok · IG" },
     ],
     danger: "auto จะโพสต์สาธารณะทันทีโดยไม่มีคนตรวจ",
-  },
-  {
-    name: "VIDEO_PROVIDER", label: "ตัวสร้างภาพ", scope: "shopee", kind: "segmented",
-    workflowDefault: "local",
-    help: "local ใช้รูปสินค้าจริงตัดต่อด้วย FFmpeg (ฟรี) · fal สร้างฉากด้วย Flux + Kling (~$1.40/คลิป ต้องเติมเครดิต fal)",
-    options: [
-      { value: "local", label: "รูปสินค้า", hint: "$0" },
-      { value: "fal", label: "AI วิดีโอ", hint: "~$1.40" },
-    ],
-    danger: "fal.ai ไม่มีเครดิตอยู่ — ต้องเติมเงินก่อน ไม่งั้นรันจะล้มเหลว",
   },
   {
     name: "STORY_PUBLISH_MODE", label: "โหมดการโพสต์", scope: "story", kind: "segmented",
@@ -196,12 +185,11 @@ export interface SecretDef {
   name: string;
   purpose: string;
   flows: FlowId[];
-  need: "required" | "auto" | "fal";
+  need: "required" | "auto";
 }
 
 export const SECRETS: SecretDef[] = [
-  { name: "GOOGLE_SHEET_ID", purpose: "ชีตคิวงาน", flows: ["shopee", "story"], need: "required" },
-  { name: "GOOGLE_SERVICE_ACCOUNT_JSON", purpose: "สิทธิ์อ่าน/เขียนชีต", flows: ["shopee", "story"], need: "required" },
+  { name: "PIPELINE_API_KEY", purpose: "ให้ pipeline คุยกับเว็บนี้ (คิว + ส่งวิดีโอรีวิว)", flows: ["shopee", "story"], need: "required" },
   { name: "AI_GATEWAY_API_KEY", purpose: "เขียนบทด้วย AI", flows: ["shopee", "story"], need: "required" },
   { name: "ELEVENLABS_API_KEY", purpose: "เสียงพากย์ไทย", flows: ["shopee", "story"], need: "required" },
   { name: "TELEGRAM_BOT_TOKEN", purpose: "ส่งวิดีโอให้ตรวจ", flows: ["shopee", "story"], need: "required" },
@@ -214,5 +202,4 @@ export const SECRETS: SecretDef[] = [
   { name: "INSTAGRAM_ACCESS_TOKEN", purpose: "สิทธิ์โพสต์ IG (อายุ 60 วัน)", flows: ["shopee", "story"], need: "auto" },
   { name: "META_APP_ID", purpose: "แอป Meta", flows: ["shopee", "story"], need: "auto" },
   { name: "META_APP_SECRET", purpose: "แอป Meta", flows: ["shopee", "story"], need: "auto" },
-  { name: "FAL_KEY", purpose: "AI วิดีโอ (โหมด fal)", flows: ["shopee"], need: "fal" },
 ];

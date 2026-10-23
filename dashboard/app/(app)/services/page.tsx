@@ -10,14 +10,10 @@ import { BILLING_LABEL, SERVICES, type Billing } from "@/lib/services";
 export const metadata: Metadata = { title: "บริการ & ค่าใช้จ่าย" };
 
 const BILLING_TONE: Record<Billing, Tone> = {
-  paid: "warn", free: "ok", "no-card": "ok", unknown: "bad", optional: "idle",
+  paid: "warn", included: "ok", free: "ok", "no-card": "ok", unknown: "bad", optional: "idle", other: "idle",
 };
 
 const NEEDS = [
-  {
-    tone: "bad" as Tone, title: "GitHub fine-grained token", cost: "ฟรี",
-    detail: "ให้ dashboard สั่งรันและแก้ตั้งค่าได้ — ทำครั้งเดียว ~2 นาที (หน้าตั้งค่ามีขั้นตอน)",
-  },
   {
     tone: "warn" as Tone, title: "เชื่อมเพจ Facebook", cost: "ฟรี",
     detail: "จำเป็นเฉพาะถ้าจะให้ Flow B โพสต์ Reels เอง · โหมดตรวจก่อนใช้ Telegram ได้เลย",
@@ -35,14 +31,16 @@ const NEEDS = [
 export default function ServicesPage() {
   const paid = SERVICES.filter((s) => s.billing === "paid");
   const unknown = SERVICES.filter((s) => s.billing === "unknown");
+  const other = SERVICES.filter((s) => s.billing === "other");
   return (
     <div className="space-y-6">
       <PageHeader title="บริการ & ค่าใช้จ่าย" subtitle="ทุกบริการที่ระบบแตะ จ่ายอยู่หรือไม่ และตรวจล่าสุดเมื่อไร" />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Summary tone="warn" big={String(paid.length)} label="บริการที่จ่ายเงินอยู่" note={paid.map((s) => s.name).join(" · ")} />
         <Summary tone="bad" big={String(unknown.length)} label="ต้องเข้าไปตรวจเอง" note={unknown.map((s) => s.name).join(" · ") || "—"} />
         <Summary tone="ok" big="$0" label="ค่าใช้จ่ายเพิ่มต่อคลิป" note="ทั้งสอง flow ใช้ของที่จ่ายแล้วหรือของฟรี" />
+        <Summary tone="idle" big={String(other.length)} label="บิลของงานอื่นในบัญชีเดียวกัน" note="ไม่เกี่ยวกับระบบนี้ · แสดงไว้ให้เห็นครบ" />
       </div>
 
       <Card>
@@ -53,7 +51,7 @@ export default function ServicesPage() {
       </Card>
 
       <Card>
-        <CardHeader eyebrow="ไม่มีรายการไหนต้องจ่ายเงิน" title="สิ่งที่ยังต้องเพิ่ม" />
+        <CardHeader eyebrow="ไม่บังคับ · ไม่มีรายการไหนต้องจ่ายเงิน" title="ทำเพิ่มได้ถ้าต้องการ" />
         <ul className="mt-3 divide-y divide-line">
           {NEEDS.map((n) => (
             <li key={n.title} className="flex items-start gap-3 px-5 py-3.5">

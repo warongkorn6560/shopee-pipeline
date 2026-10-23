@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ExternalLink, LayoutDashboard, ListChecks, LogOut, Receipt, SlidersHorizontal } from "lucide-react";
+import { Clapperboard, ExternalLink, LayoutDashboard, ListChecks, LogOut, Receipt, SlidersHorizontal } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
 import { cx } from "./ui";
 
 const NAV = [
   { href: "/", label: "ภาพรวม", icon: LayoutDashboard },
+  { href: "/review", label: "รีวิววิดีโอ", short: "รีวิว", icon: Clapperboard },
   { href: "/queue", label: "คิวงาน", icon: ListChecks },
   { href: "/settings", label: "ตั้งค่า", icon: SlidersHorizontal },
   { href: "/services", label: "บริการ & ค่าใช้จ่าย", short: "บริการ", icon: Receipt },
@@ -83,7 +84,7 @@ export function MobileNav() {
       </div>
       <nav
         aria-label="หลัก"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur md:hidden"
       >
         {NAV.map(({ href, label, icon: Icon, ...rest }) => (
           <Link
