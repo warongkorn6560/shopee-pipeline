@@ -26,6 +26,8 @@ OUTPUT_DIR = ROOT / "output"  # final MP4s
 ASSETS = ROOT / "assets"
 FONT_PATH = ASSETS / "fonts" / "Sarabun-Bold.ttf"
 FONT_REGULAR_PATH = ASSETS / "fonts" / "Sarabun-Regular.ttf"
+FONT_DISPLAY_PATH = ASSETS / "fonts" / "Kanit-ExtraBold.ttf"
+FONT_DISPLAY_MEDIUM_PATH = ASSETS / "fonts" / "Kanit-Bold.ttf"
 MUSIC_DIR = ASSETS / "music"
 
 _ENV_KEYS = (
@@ -43,6 +45,7 @@ _ENV_KEYS = (
     "STORY_AUTO_TOPIC", "STORY_VOICE_ID", "STORY_LLM_MODEL", "STORY_MAX_AI_IMAGES",
     "GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
     "DASHBOARD_URL", "PIPELINE_API_KEY",
+    "CLAUDE_MODEL", "CLAUDE_EFFORT", "TTS_MODEL", "SHOP_VOICE_ID", "STORY_TARGET_SECONDS",
 )
 
 
@@ -83,10 +86,23 @@ FPS = 30
 
 # Thai voice. ElevenLabs is the default because the active annual Starter plan
 # already includes enough monthly credits for both daily flows.
+# eleven_multilingual_v2 does NOT support Thai (it sounded garbled: 65% of words
+# survived a speech-to-text check); eleven_v4 + a native Thai voice scored 100%.
 TTS_PROVIDER = _get("TTS_PROVIDER", "elevenlabs")  # elevenlabs | azure | fal
-ELEVENLABS_VOICE_ID = "XrExE9yKIg1WjnnlVkGX"  # "Matilda" – warm female, multilingual
-ELEVENLABS_MODEL = "eleven_multilingual_v2"
+TTS_MODEL = _get("TTS_MODEL", "eleven_v4")
+THAI_VOICES = {
+    "jucSqawHKM1rUNf78oZQ": "Duang — ผู้ชาย เล่าเรื่องเสียงทุ้ม",
+    "7XW5JhaNn90bnFojQ5DA": "Mali — ผู้หญิง ชัด เป็นธรรมชาติ",
+    "yq05eeRaHPMGuWTVpqeP": "Tonce — ผู้ชาย เป็นกันเอง",
+}
+SHOP_VOICE_ID = _get("SHOP_VOICE_ID", "7XW5JhaNn90bnFojQ5DA")   # Mali
+ELEVENLABS_VOICE_ID = SHOP_VOICE_ID
+ELEVENLABS_MODEL = TTS_MODEL
 AZURE_VOICE = "th-TH-PremwadeeNeural"
+
+# Creative LLM. With ANTHROPIC_API_KEY set, every script/plan is written by Claude.
+CLAUDE_MODEL = _get("CLAUDE_MODEL", "claude-opus-5-5")
+CLAUDE_EFFORT = _get("CLAUDE_EFFORT", "high")
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +167,7 @@ STATUS_FAILED = "Failed"
 STORY_SERIES_NAME = _get("STORY_SERIES_NAME", "เรื่องเล่าจากแผนที่")
 STORY_NICHE = _get(
     "STORY_NICHE",
-    "เรื่องเล่าประวัติศาสตร์และภูมิศาสตร์ผ่านแผนที่ ทั้งไทยและโลก เล่าแบบสนุก เข้าใจง่าย",
+    "เล่าเรื่องสถานที่ในประเทศไทยผ่านแผนที่ดาวเทียม: คลอง แม่น้ำ ถนน รถไฟ อำเภอ ชื่อบ้านนามเมือง และเมกะโปรเจกต์ ที่คนไทยรู้จักและอยากคอมเมนต์",
 )
 # auto      : AI illustration for "scene" visuals when available, real Wikimedia
 #             Commons images for maps/photos, designed text cards as last resort
@@ -163,7 +179,8 @@ STORY_IMAGE_MODEL = _get("STORY_IMAGE_MODEL", "google/gemini-2.5-flash-image")
 STORY_IMAGE_PRICE_USD = 0.039
 STORY_MAX_AI_IMAGES = int(_get("STORY_MAX_AI_IMAGES", "4"))
 STORY_AUTO_TOPIC = _get("STORY_AUTO_TOPIC", "on").lower() in ("1", "on", "true", "yes")
-STORY_VOICE_ID = _get("STORY_VOICE_ID", ELEVENLABS_VOICE_ID)
+STORY_VOICE_ID = _get("STORY_VOICE_ID", "jucSqawHKM1rUNf78oZQ")   # Duang
+STORY_TARGET_SECONDS = int(_get("STORY_TARGET_SECONDS", "75"))
 # Stronger than the Flow A default at factual Thai writing; still allowed on the
 # AI Gateway free tier (billed against its free monthly credit, ~$0.005/story).
 STORY_LLM_MODEL = _get("STORY_LLM_MODEL", "openai/gpt-4.1-mini")

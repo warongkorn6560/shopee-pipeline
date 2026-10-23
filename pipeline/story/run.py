@@ -16,18 +16,14 @@ import datetime as dt
 import json
 import traceback
 
-from .. import compose, hub, voiceover
+from .. import hub, voiceover
 from ..config import (
     COST_CAP_USD, OUTPUT_DIR, PUBLISH_MODE, STORY_AUTO_TOPIC, STORY_IMAGE_PRICE_USD,
-    STORY_MAX_AI_IMAGES, STORY_SERIES_NAME, STORY_VOICE_ID, WORK_DIR, Scene, VideoPlan,
+    STORY_MAX_AI_IMAGES, STORY_SERIES_NAME, STORY_VOICE_ID, WORK_DIR,
 )
 from ..publish import publish_story
 from ..run import _log_spend, _silent_voice, _slug, posted_somewhere, run_url
-from . import images, topics, writer
-
-_MAP_MOTIONS = ("in", "out")
-_OTHER_MOTIONS = ("pan-right", "in", "pan-left", "up", "out", "down")
-
+from . import images, maps, render, topics, writer
 
 def scene_durations(texts: list[str], alignment: dict | None, audio_len: float,
                     tail: float = 1.4) -> list[float]:
@@ -50,41 +46,14 @@ def scene_durations(texts: list[str], alignment: dict | None, audio_len: float,
     return durs
 
 
-_MAX_SHOT = 8.5  # seconds a single camera move may hold before it gets stale
-
-
-def _to_video_plan(plan: writer.StoryPlan, imgs: list[images.SceneImage],
-                   durs: list[float]) -> tuple[VideoPlan, list[float]]:
-    """Map story scenes to render shots; a long scene becomes two shots on the
-    same image with different camera moves so the frame never sits still."""
-    scenes, shot_durs, other = [], [], 0
-    for i, (sc, img, d) in enumerate(zip(plan.scenes, imgs, durs)):
-        parts = 2 if d > _MAX_SHOT else 1
-        for part in range(parts):
-            if sc.visual == "map":
-                motion = _MAP_MOTIONS[(i + part) % 2]
-            else:
-                motion = _OTHER_MOTIONS[other % len(_OTHER_MOTIONS)]
-                other += 1
-            scenes.append(Scene(
-                kind="kenburns", duration=d / parts, caption=sc.caption,
-                image_path=str(img.path), motion=motion, header=plan.title,
-                badge=STORY_SERIES_NAME, credit=img.credit, big=(i == 0),
-            ))
-            shot_durs.append(d / parts)
-    return (VideoPlan(script=plan.narration, caption=plan.post_caption,
-                      hashtags=plan.hashtags, scenes=scenes), shot_durs)
-
-
-def _texts(plan: writer.StoryPlan, imgs: list[images.SceneImage]) -> tuple[str, str]:
+def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str, str]:
     tags = " ".join(plan.hashtags)
     sources = " · ".join(plan.sources)
-    credits = sorted({i.credit for i in imgs if i.provider == "wikimedia"})
-    credit_block = ("\n🖼 " + "\n🖼 ".join(credits)) if credits else ""
+    credits = [maps.BASEMAP_CREDIT] + sorted({i.credit for i in photos if i.provider == "wikimedia"})
     social = f"{plan.post_caption}\n\n{tags}"
     if sources:
         social += f"\n\n📚 แหล่งข้อมูล: {sources}"
-    social += credit_block
+    social += "\n🛰 " + "\n🖼 ".join(credits)
     review = (f"📖 {STORY_SERIES_NAME} — {plan.title}\n\n{social}\n\n"
               f"หัวข้อ: {plan.topic}\nโหมด: {PUBLISH_MODE}")
     return review, social
@@ -136,43 +105,39 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         topics.update(topic.ref, runUrl=run_url(), lastError="")
     try:
         plan = writer.mock_story(topic.topic) if offline else writer.write_story(topic.topic, topic.angle)
-        print(f"  title: {plan.title} · {len(plan.scenes)} scenes · {len(plan.narration)} chars")
+        print(f"  title: {plan.title} · {len(plan.scenes)} beats · {len(plan.spoken)} spoken chars")
         if dry_run:
             print(json.dumps({"title": plan.title, "scenes": [s.__dict__ for s in plan.scenes],
                               "post_caption": plan.post_caption, "hashtags": plan.hashtags,
                               "sources": plan.sources}, indent=2, ensure_ascii=False))
             return 0
 
-        if offline:
-            imgs = [images.SceneImage(images.globe_card(run_dir / f"card_{i}.jpg",
-                                                        highlight=s.highlight, seed=i))
-                    for i, s in enumerate(plan.scenes)]
-        else:
-            imgs = images.fetch_all(plan.scenes, run_dir)
+        photo_idx = [i for i, sc in enumerate(plan.scenes) if sc.visual == "photo"]
+        photos: dict[int, images.SceneImage] = {}
+        if photo_idx and not offline:
+            got = images.fetch_all([plan.scenes[i] for i in photo_idx], run_dir)
+            photos = {i: img for i, img in zip(photo_idx, got) if img.provider != "card"}
 
         voice = run_dir / "voice.mp3"
-        texts = [s.narration for s in plan.scenes]
+        texts = [s.spoken or s.narration for s in plan.scenes]
         if offline:
-            _silent_voice(voice, seconds=max(len(plan.narration) / 9.5, 10))
+            _silent_voice(voice, seconds=max(len(" ".join(texts)) / 13, 10))
             alignment = None
         else:
             left = voiceover.remaining_characters()
-            if left is not None and left < len(plan.narration):
-                raise RuntimeError(f"ElevenLabs quota too low ({left} chars left, need {len(plan.narration)}).")
+            if left is not None and left < len(plan.spoken):
+                raise RuntimeError(f"ElevenLabs quota too low ({left} chars left, need {len(plan.spoken)}).")
             voice, alignment = voiceover.synthesize_with_timestamps(" ".join(texts), voice, STORY_VOICE_ID)
         audio_len = voiceover.audio_duration(voice)
         durs = scene_durations(texts, alignment, audio_len)
-        print(f"  narration {audio_len:.1f}s → scenes {[round(d, 1) for d in durs]}")
+        print(f"  narration {audio_len:.1f}s → beats {[round(d, 1) for d in durs]}")
 
-        vplan, shot_durs = _to_video_plan(plan, imgs, durs)
-        final = compose.compose(vplan, {}, voice, music=compose.first_music("story"),
-                                out_name=f"story_{_slug(plan.title)}.mp4",
-                                durations=shot_durs, music_volume=0.08, work_dir=run_dir)
-        review, social = _texts(plan, imgs)
+        final = render.render(plan, durs, voice, run_dir, f"story_{_slug(plan.title)}.mp4", photos)
+        review, social = _texts(plan, list(photos.values()))
         (OUTPUT_DIR / "story_latest.json").write_text(json.dumps({
             "topic": plan.topic, "title": plan.title, "mp4": str(final),
-            "scenes": [{**s.__dict__, "image": i.provider, "credit": i.credit}
-                       for s, i in zip(plan.scenes, imgs)],
+            "region": plan.region, "hook": [plan.hook_title, plan.hook_subtitle],
+            "scenes": [s.__dict__ for s in plan.scenes],
             "social_caption": social,
         }, indent=2, ensure_ascii=False))
 
@@ -193,7 +158,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         )
         topics.update(topic.ref, status=topics.POSTED if posted else topics.DONE, title=plan.title,
                       published=_summary(res), videoId=up["videoId"])
-        _log_spend(plan.title, images.ai_images_used(imgs) * STORY_IMAGE_PRICE_USD, str(final), flow="story")
+        _log_spend(plan.title, images.ai_images_used(list(photos.values())) * STORY_IMAGE_PRICE_USD, str(final), flow="story")
         print("  ✓ done")
         return 0
 

@@ -17,7 +17,7 @@ concurrency:
 jobs:
   make-story:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40   # map rendering takes ~5 min; leaves room for slow tile servers
     steps:
       - uses: actions/checkout@v4
 
@@ -40,6 +40,11 @@ jobs:
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gateway' }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'google/gemini-2.5-flash-lite' }}
           STORY_LLM_MODEL: ${{ vars.STORY_LLM_MODEL || 'openai/gpt-4.1-mini' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-opus-5-5' }}
+          CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
+          TTS_MODEL: ${{ vars.TTS_MODEL || 'eleven_v4' }}
+          STORY_TARGET_SECONDS: ${{ vars.STORY_TARGET_SECONDS || '75' }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           TTS_PROVIDER: elevenlabs
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

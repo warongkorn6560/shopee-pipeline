@@ -22,7 +22,8 @@ from .config import (
 )
 
 
-_VOICE_SETTINGS = {"stability": 0.5, "similarity_boost": 0.75, "style": 0.3}
+# Settings verified with eleven_v4 + native Thai voices (speech-to-text match 100%).
+_VOICE_SETTINGS = {"stability": 0.5, "similarity_boost": 0.75}
 
 
 def _elevenlabs(text: str, out: Path) -> Path:

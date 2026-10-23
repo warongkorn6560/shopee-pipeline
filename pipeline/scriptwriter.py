@@ -14,7 +14,6 @@ REAL product (the product image is the first frame), in UGC selling style.
 
 from __future__ import annotations
 
-import json
 
 from .config import (
     ENV, NICHE, SHOPEE_ORANGE, TIKTOK_HANDLE, VIDEO_PROVIDER, WORK_DIR,
@@ -178,6 +177,8 @@ VOICEOVER RULES
 - Thai, 45-60 words (~20-25 seconds), follows the 5 beats in order
 - Ends EXACTLY with: ดูลิงก์ในโปรไฟล์ได้เลย
 - The narrator is a woman: if you use a polite particle, use ค่ะ / นะคะ, never ครับ
+- Write numbers and units as spoken Thai words (เก้าสิบเก้าบาท, ไม่ใช่ 99 บาท) — the script is read aloud
+- Natural spoken Thai like a real creator talking to a friend, short sentences, no stiff written style
 - No exaggerated medical/financial claims
 
 CAPTION RULES
@@ -199,16 +200,12 @@ Output raw JSON only."""
 _LOCAL_MOTIONS = ("in", "pan-right", "out", "pan-left", "in")
 
 
-def _llm_json(system: str, prompt: str, *, model: str | None = None, max_tokens: int = 3000) -> dict:
-    """Call the LLM and parse JSON, retrying once on malformed output."""
-    last: Exception | None = None
-    for _ in range(2):
-        raw = _call_llm(system, prompt, max_tokens=max_tokens, model=model)
-        try:
-            return json.loads(_strip_to_json(raw))
-        except json.JSONDecodeError as e:
-            last = e
-    raise RuntimeError(f"LLM returned invalid JSON twice: {last}")
+def _llm_json(system: str, prompt: str, *, model: str | None = None, max_tokens: int = 3000,
+              schema: dict | None = None) -> dict:
+    """Claude when ANTHROPIC_API_KEY is set, else the AI Gateway (model = gateway model)."""
+    from .llm import generate_json
+    return generate_json(system, prompt, schema=schema, max_tokens=max(max_tokens, 8000),
+                         gateway_model=model)
 
 
 def write_plan(product: Product) -> VideoPlan:

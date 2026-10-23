@@ -34,6 +34,10 @@ jobs:
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gateway' }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'google/gemini-2.5-flash-lite' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-opus-5-5' }}
+          CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
+          TTS_MODEL: ${{ vars.TTS_MODEL || 'eleven_v4' }}
+          SHOP_VOICE_ID: ${{ vars.SHOP_VOICE_ID }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           TTS_PROVIDER: elevenlabs
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
