@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from ..captions import _clean, _wrap_ex
+from ..captions import _clean, _clusters, _wrap_ex
 from ..config import (
     ASSETS, FONT_DISPLAY_MEDIUM_PATH, FONT_DISPLAY_PATH, FONT_PATH, FPS, MUSIC_DIR, OUTPUT_DIR,
     VIDEO_H, VIDEO_W,
@@ -162,7 +162,16 @@ def _pin_sprite(number: str) -> Image.Image:
 
 
 def _subtitle_chunks(text: str, max_chars: int = 34) -> list[str]:
-    words, chunks, cur = _clean(text).split(" "), [], ""
+    words: list[str] = []
+    for w in _clean(text).split(" "):
+        while len(w) > max_chars:  # long unspaced Thai run: cut between clusters
+            piece, rest = "", _clusters(w)
+            while rest and len(piece) + len(rest[0]) <= max_chars - 6:
+                piece += rest.pop(0)
+            words.append(piece)
+            w = "".join(rest)
+        words.append(w)
+    chunks, cur = [], ""
     for w in words:
         if cur and len(cur) + 1 + len(w) > max_chars:
             chunks.append(cur)
@@ -383,12 +392,18 @@ def _render_map_overlays(flat: Image.Image, to_flat, beat: GeoBeat, t: float,
 # ---------------------------------------------------------------------------
 # Assembly
 # ---------------------------------------------------------------------------
+MAX_MB = 44  # Telegram bots reject uploads over 50 MB
+
+
 class _Writer:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, seconds: float):
+        # Bitrate sized so the whole file (video + 160k audio) stays under MAX_MB.
+        kbps = max(1500, min(8000, int(MAX_MB * 8 * 1024 / max(seconds, 1) - 200)))
         self.proc = subprocess.Popen(
             ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
              "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "veryfast",
-             "-crf", "19", "-pix_fmt", "yuv420p", str(path)],
+             "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.15)}k", "-bufsize", f"{kbps * 2}k",
+             "-pix_fmt", "yuv420p", str(path)],
             stdin=subprocess.PIPE)
         self.last: Image.Image | None = None
 
@@ -442,7 +457,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
     credit_map = _text_block(maps.BASEMAP_CREDIT, FONT_PATH, 22, (255, 255, 255, 190), max_w=1000,
                              max_lines=1, min_size=16)
     silent = run_dir / "story_silent.mp4"
-    writer = _Writer(silent)
+    writer = _Writer(silent, sum(beat_durs))
     cam_lon, cam_lat, cam_span = None, None, None
     context: list[Overlay] = []
     label_cache: dict[str, Image.Image] = {}
@@ -512,12 +527,18 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
             flat = _render_map_overlays(flat, to_flat, g, t, context)
             screen = flat.convert("RGB").transform((W, H), Image.PERSPECTIVE, _PERSPECTIVE, Image.BILINEAR)
 
-            placed_labels = []
+            placed_labels, boxes = [], []
             for sprite, llon, llat in label_sprites:
                 fx, fy = to_flat(np.array([[llon, llat]]))[0]
                 sx, sy = _flat_to_screen(fx, fy)
-                if 20 < sx < W - 80 and 560 < sy < 1330:
-                    placed_labels.append((sprite, (sx - 10, sy - sprite.height / 2)))
+                x0, y0 = sx - 10, sy - sprite.height / 2
+                box = (x0, y0, x0 + sprite.width, y0 + sprite.height)
+                if box[0] < 16 or box[2] > W - 16 or not 560 < sy < 1330:
+                    continue
+                if any(not (box[2] < b[0] or box[0] > b[2] or box[3] < b[1] or box[1] > b[3]) for b in boxes):
+                    continue
+                boxes.append(box)
+                placed_labels.append((sprite, (x0, y0)))
             placed_pins = []
             pin_k = _ease((t - 0.2) / 0.2)
             if pin_k > 0:
@@ -592,6 +613,6 @@ def _mix(silent: Path, voice: Path, beat_durs: list[float], final: Path, run_dir
                  "loudnorm=I=-15:TP=-1.5:LRA=11[a]")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", ";".join(graph),
                     "-map", "0:v", "-map", "[a]", "-t", f"{total:.3f}", "-c:v", "copy",
-                    "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(final)], check=True)
+                    "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(final)], check=True)
     print(f"  [render] final -> {final} ({total:.1f}s)")
     return final

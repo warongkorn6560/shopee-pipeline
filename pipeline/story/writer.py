@@ -87,7 +87,8 @@ BEATS — 9 to 14, in order:
   last: CTA — ask the comment question, then "กดติดตาม{series} ไว้ แล้วมาดูตอนต่อไปกัน".
 
 FIELDS PER BEAT
-- narration: what viewers read in subtitles (Thai, numbers as digits OK).
+- narration: what viewers read in subtitles (Thai, numbers as digits OK). Put a space between
+  phrases every 8-25 characters, the way Thai is normally spaced, so subtitles break cleanly.
 - spoken: the SAME sentence written for text-to-speech: every number, year and unit spelled out in
   Thai words (พ.ศ. 2433 → พุทธศักราชสองพันสี่ร้อยสามสิบสาม, 25 กม. → ยี่สิบห้ากิโลเมตร,
   ร.5 → รัชกาลที่ห้า), no symbols, no English abbreviations, no emoji.
@@ -95,8 +96,10 @@ FIELDS PER BEAT
 - card_title: big title on the card, max 14 characters (e.g. "คลอง 6", "ทุ่งรังสิต").
 - card_subtitle: max 34 characters (places, names — e.g. "คลองหลวง · วังน้อย · ลำลูกกา").
 - card_fact: max 34 characters, one number fact (e.g. "ปทุมธานี / อยุธยา · ยาว ~39 กม."), or "".
-- shot: "map" for almost every beat. "photo" only when a real historical photo or portrait is
-  essential (max 2 per video) — then set photo_query to 2-5 ENGLISH Wikimedia Commons keywords.
+- shot: "map" for almost every beat. "photo" only when a real historical photo or portrait OF THIS
+  EXACT THAI PLACE OR PERSON is essential (max 2 per video) — then set photo_query to 2-5 ENGLISH
+  Wikimedia Commons keywords that name it (e.g. "Saen Saep canal Bangkok 1900"). If unsure such a
+  photo exists, use "map".
 - focus: map features to draw. Use names exactly as they appear in OpenStreetMap Thailand (Thai):
   e.g. {{"name": "คลองรังสิตประยูรศักดิ์", "kind": "waterway", "style": "line", "number": ""}},
   {{"name": "อำเภอธัญบุรี", "kind": "admin_area", "style": "area", "number": ""}},
