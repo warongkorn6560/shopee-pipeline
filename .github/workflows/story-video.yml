@@ -21,18 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: System deps (ffmpeg + Thai shaping)
-        # Ubuntu mirrors occasionally hang; bound each attempt and retry so a
-        # stuck mirror can't eat the whole job timeout.
-        timeout-minutes: 15
-        run: |
-          for i in 1 2 3; do
-            sudo timeout 240 apt-get update -o Acquire::Retries=3 \
-              && sudo timeout 300 apt-get install -y --no-install-recommends ffmpeg libraqm0 \
-              && exit 0
-            echo "apt attempt $i failed; retrying in 20s"; sleep 20
-          done
-          exit 1
+      - uses: ./.github/actions/setup-media
 
       - uses: actions/setup-python@v5
         with:
@@ -40,7 +29,9 @@ jobs:
           cache: pip
 
       - name: Python deps
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          python -c "from PIL import features; assert features.check('raqm'), 'Pillow has no raqm: Thai text would render wrong'; print('raqm ok')"
 
       - name: Generate + deliver one story
         env:

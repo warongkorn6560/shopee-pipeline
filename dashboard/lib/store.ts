@@ -75,7 +75,8 @@ async function read<N extends Name>(name: N): Promise<{ items: Collections[N][];
   const res = await get(path(name), { access: "private", useCache: false });
   if (!res || res.statusCode !== 200) return { items: [], etag: null };
   const doc = JSON.parse(await new Response(res.stream).text()) as { items?: Collections[N][] };
-  return { items: doc.items ?? [], etag: res.blob.etag };
+  // Compressed responses carry a weak ETag (W/"…"); conditional writes need the strong form.
+  return { items: doc.items ?? [], etag: res.blob.etag.replace(/^W\//, "") };
 }
 
 export async function list<N extends Name>(name: N): Promise<Collections[N][]> {
@@ -99,7 +100,7 @@ export async function mutate<N extends Name, R>(
       });
       return result;
     } catch (e) {
-      const conflict = e instanceof BlobPreconditionFailedError || /already exists/i.test(String(e));
+      const conflict = e instanceof BlobPreconditionFailedError || /precondition|etag mismatch|already exists/i.test(String(e));
       if (!conflict || attempt === 5) throw e;
       await new Promise((r) => setTimeout(r, 120 + Math.random() * 300));
     }
