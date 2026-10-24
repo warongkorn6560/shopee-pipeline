@@ -96,7 +96,9 @@ export async function authUrl(p: Provider, origin: string, state: string): Promi
     const app = metaApp(await readDoc())!;
     return `https://www.facebook.com/v22.0/dialog/oauth?${new URLSearchParams({
       client_id: app.id, redirect_uri, state, response_type: "code",
-      scope: "pages_show_list,pages_read_engagement,pages_manage_posts",
+      // Facebook Login for Business: the configuration carries the page permissions
+      // (pages_show_list, pages_read_engagement, pages_manage_posts).
+      config_id: process.env.FB_LOGIN_CONFIG_ID || "2039499073210511",
     })}`;
   }
   if (p === "instagram") {
