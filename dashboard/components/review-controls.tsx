@@ -30,7 +30,7 @@ export function CopyButton({ text, label = "คัดลอก" }: { text: strin
   );
 }
 
-export function ReviewActions({ id, status, canPost }: { id: string; status: VideoStatus; canPost?: boolean }) {
+export function ReviewActions({ id, status, canPost, tried }: { id: string; status: VideoStatus; canPost?: boolean; tried?: boolean }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const act = (decision: VideoStatus, requeue = false) =>
@@ -41,7 +41,7 @@ export function ReviewActions({ id, status, canPost }: { id: string; status: Vid
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={pending} onClick={() => act("approved")} className={cx(btn.base, btn.primary, small)}
           title={canPost ? "ผ่าน แล้วโพสต์ไปเพจของคลิปนี้ทันที" : undefined}>
-          <Check className="size-4" /> {canPost ? "ผ่าน · โพสต์เลย" : "ผ่าน"}
+          <Check className="size-4" /> {canPost ? "อนุมัติและโพสต์" : "ผ่าน"}
         </button>
         <button type="button" disabled={pending} onClick={() => act("rejected")} className={cx(btn.base, btn.secondary, small)}>
           <X className="size-4" /> ไม่ผ่าน
@@ -56,12 +56,12 @@ export function ReviewActions({ id, status, canPost }: { id: string; status: Vid
     <div className="flex flex-wrap gap-2">
       {status === "approved" && canPost && (
         <button type="button" disabled={pending} onClick={() => start(async () => toast(await repostVideo(id)))} className={cx(btn.base, btn.primary, small)}>
-          <Upload className="size-4" /> โพสต์อีกครั้ง
+          <Upload className="size-4" /> {tried ? "โพสต์อีกครั้ง" : "โพสต์เลย"}
         </button>
       )}
       {status === "approved" && (
-        <button type="button" disabled={pending} onClick={() => act("posted")} className={cx(btn.base, canPost ? btn.secondary : btn.primary, small)}>
-          <Send className="size-4" /> {canPost ? "ทำเครื่องหมายว่าโพสต์แล้ว" : "โพสต์แล้ว"}
+        <button type="button" disabled={pending} onClick={() => act("posted")} className={cx(btn.base, canPost ? btn.ghost : btn.primary, small)}>
+          <Send className="size-4" /> บันทึกว่าโพสต์เองแล้ว
         </button>
       )}
       {status === "rejected" && (

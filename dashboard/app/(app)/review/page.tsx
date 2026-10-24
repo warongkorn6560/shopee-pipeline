@@ -137,7 +137,7 @@ function VideoCard({ v }: { v: Video }) {
         {v.note && <p className="rounded-lg bg-bad-soft px-3 py-2 text-xs text-bad">หมายเหตุ: {v.note}</p>}
         <PostStatus v={v} />
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
-          <ReviewActions id={v.id} status={v.status} canPost={v.flow === "story"} />
+          <ReviewActions id={v.id} status={v.status} canPost={v.flow === "story"} tried={Boolean(v.postRequestedAt || v.published)} />
           {v.pathname && (
             <a href={`/api/videos/${v.id}`} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
               <Download className="size-4" /> ดาวน์โหลด
@@ -171,7 +171,7 @@ function PostStatus({ v }: { v: Video }) {
         const skipped = r && typeof r === "object" && "skipped" in r;
         return (
           <li key={k} title={err ?? undefined}>
-            <Pill tone={err ? "bad" : skipped ? "idle" : "ok"}>{PLATFORM[k]} · {err ? "ไม่สำเร็จ" : skipped ? "ข้าม" : "โพสต์แล้ว"}</Pill>
+            <Pill tone={err ? "bad" : skipped ? "idle" : "ok"}>{PLATFORM[k]} {err ? "✗" : skipped ? "–" : "✓"}</Pill>
           </li>
         );
       })}
