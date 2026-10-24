@@ -18,6 +18,7 @@ import traceback
 
 from .. import hub, llm, voiceover
 from ..config import (
+    STORY_CHANNEL_ID,
     COST_CAP_USD, OUTPUT_DIR, PUBLISH_MODE, STORY_AUTO_TOPIC, STORY_IMAGE_PRICE_USD,
     STORY_MAX_AI_IMAGES, STORY_SERIES_NAME, STORY_VOICE_ID, WORK_DIR,
 )
@@ -156,6 +157,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
             reviewText=plan.narration, sources=plan.sources, runUrl=run_url(),
             published=res, status="posted" if posted else "review",
             cost={**llm.USAGE, "ttsChars": len(plan.spoken)},
+            channelId=STORY_CHANNEL_ID,
         )
         topics.update(topic.ref, status=topics.POSTED if posted else topics.DONE, title=plan.title,
                       published=_summary(res), videoId=up["videoId"])
