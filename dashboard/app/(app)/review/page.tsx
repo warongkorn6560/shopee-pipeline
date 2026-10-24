@@ -7,7 +7,9 @@ import { Card, FlowTag, InlineError, PageHeader, Pill, Skeleton, cx, type Tone }
 import { requireSession } from "@/lib/dal";
 import { getVideos } from "@/lib/data";
 import { bytes, number, relative, thaiDateTime } from "@/lib/format";
-import { VIDEO_RETENTION_DAYS, type Video, type VideoStatus } from "@/lib/store";
+import { primaryChannelId } from "@/lib/channels";
+import { explainError, pending } from "@/lib/posting";
+import { VIDEO_RETENTION_DAYS, storeConfigured, type Video, type VideoStatus } from "@/lib/store";
 
 export const metadata: Metadata = { title: "รีวิววิดีโอ" };
 
@@ -43,7 +45,7 @@ async function ReviewContent({ searchParams }: { searchParams: Promise<Record<st
   await requireSession();
   const sp = await searchParams;
   const tab = (TABS.find((t) => t.key === sp.status)?.key ?? "review") as VideoStatus | "all";
-  const res = await getVideos();
+  const [res, primary] = await Promise.all([getVideos(), storeConfigured() ? primaryChannelId().catch(() => "") : ""]);
   if (!res.ok) return <InlineError title="โหลดวิดีโอไม่สำเร็จ" detail={res.error} />;
   const counts = res.value.reduce<Record<string, number>>((m, v) => ((m[v.status] = (m[v.status] ?? 0) + 1), m), {});
   const videos = tab === "all" ? res.value : res.value.filter((v) => v.status === tab);
@@ -69,14 +71,14 @@ async function ReviewContent({ searchParams }: { searchParams: Promise<Record<st
         </Card>
       ) : (
         <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
-          {videos.map((v) => <VideoCard key={v.id} v={v} />)}
+          {videos.map((v) => <VideoCard key={v.id} v={v} primaryId={primary} />)}
         </div>
       )}
     </>
   );
 }
 
-function VideoCard({ v }: { v: Video }) {
+function VideoCard({ v, primaryId }: { v: Video; primaryId: string }) {
   const s = STATUS[v.status];
   return (
     <div id={`v-${v.id}`} className="scroll-mt-24 rounded-2xl target:ring-2 target:ring-focus target:ring-offset-2 target:ring-offset-bg">
@@ -137,7 +139,7 @@ function VideoCard({ v }: { v: Video }) {
         {v.note && <p className="rounded-lg bg-bad-soft px-3 py-2 text-xs text-bad">หมายเหตุ: {v.note}</p>}
         <PostStatus v={v} />
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
-          <ReviewActions id={v.id} status={v.status} canPost={v.flow === "story"} tried={Boolean(v.postRequestedAt || v.published)} />
+          <ReviewActions id={v.id} status={v.status} canPost={v.flow === "story"} tried={Boolean(v.postRequestedAt || v.published)} retry={v.flow === "story" ? pending(v, primaryId) : []} />
           {v.pathname && (
             <a href={`/api/videos/${v.id}`} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
               <Download className="size-4" /> ดาวน์โหลด
@@ -168,10 +170,12 @@ function PostStatus({ v }: { v: Video }) {
     <ul className="flex flex-wrap gap-1.5 text-xs">
       {results.map(([k, r]) => {
         const err = r && typeof r === "object" && "error" in r ? String((r as { error: unknown }).error) : null;
+        const why = err ? explainError(k, err) : null;
         const skipped = r && typeof r === "object" && "skipped" in r;
         return (
           <li key={k} title={err ?? undefined}>
             <Pill tone={err ? "bad" : skipped ? "idle" : "ok"}>{PLATFORM[k]} {err ? "✗" : skipped ? "–" : "✓"}</Pill>
+            {why && <span className="ml-1.5 text-bad">{why}</span>}
           </li>
         );
       })}

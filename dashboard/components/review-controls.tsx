@@ -30,7 +30,9 @@ export function CopyButton({ text, label = "คัดลอก" }: { text: strin
   );
 }
 
-export function ReviewActions({ id, status, canPost, tried }: { id: string; status: VideoStatus; canPost?: boolean; tried?: boolean }) {
+export function ReviewActions({ id, status, canPost, tried, retry = [] }: {
+  id: string; status: VideoStatus; canPost?: boolean; tried?: boolean; retry?: string[];
+}) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const act = (decision: VideoStatus, requeue = false) =>
@@ -54,9 +56,10 @@ export function ReviewActions({ id, status, canPost, tried }: { id: string; stat
   }
   return (
     <div className="flex flex-wrap gap-2">
-      {status === "approved" && canPost && (
-        <button type="button" disabled={pending} onClick={() => start(async () => toast(await repostVideo(id)))} className={cx(btn.base, btn.primary, small)}>
-          <Upload className="size-4" /> {tried ? "โพสต์อีกครั้ง" : "โพสต์เลย"}
+      {(status === "approved" || status === "posted") && canPost && retry.length > 0 && (
+        <button type="button" disabled={pending} onClick={() => start(async () => toast(await repostVideo(id)))} className={cx(btn.base, btn.primary, small)}
+          title={tried ? `ลองใหม่เฉพาะ: ${retry.join(", ")}` : undefined}>
+          <Upload className="size-4" /> {tried ? `โพสต์อีกครั้ง (${retry.length})` : "โพสต์เลย"}
         </button>
       )}
       {status === "approved" && (

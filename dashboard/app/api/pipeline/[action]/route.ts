@@ -162,6 +162,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         id: v.id, flow: v.flow, title: v.title, caption: v.caption,
         url: await presignedPlayback(v.pathname, 60),
         primary: !v.channelId || v.channelId === primaryId,
+        published: v.published ?? {},
         ...(ch ? { channelId: ch.channel.id, channelName: ch.channel.name, pageId: ch.channel.pageId, token: ch.token } : {}),
       });
     }
