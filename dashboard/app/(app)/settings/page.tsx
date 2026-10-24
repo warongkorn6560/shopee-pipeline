@@ -4,11 +4,13 @@ import { ArrowUpRight, KeyRound } from "lucide-react";
 import { RunButton, ScheduleToggle } from "@/components/controls";
 import { Card, CardHeader, FlowTag, InlineError, PageHeader, Pill, Skeleton, StateIcon, Tally, cx } from "@/components/ui";
 import { ClaudeKeyForm, VoiceSample } from "@/components/ai-card";
+import { ConnectButtons, ConnectResult, TiktokAppForm } from "@/components/social-card";
 import { VarField } from "@/components/var-field";
 import { requireSession } from "@/lib/dal";
-import { effective, getSecrets, getVariables, getWorkflows } from "@/lib/data";
+import { effective, getSecrets, getVariables, getWorkflows, settle } from "@/lib/data";
 import { FLOWS, SECRETS, VARIABLES, type FlowId } from "@/lib/flows";
 import { REPO, githubConfigured } from "@/lib/github";
+import { connections, type Provider } from "@/lib/social";
 import { storeConfigured } from "@/lib/store";
 
 export const metadata: Metadata = { title: "ตั้งค่า" };
@@ -36,7 +38,9 @@ export default function SettingsPage() {
       <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
         <Secrets />
       </Suspense>
-      <Social />
+      <Suspense fallback={<Skeleton className="h-80 rounded-2xl" />}>
+        <Social />
+      </Suspense>
     </div>
   );
 }
@@ -266,35 +270,66 @@ async function Secrets() {
   );
 }
 
-function Social() {
-  const items = [
-    {
-      name: "เพจ Facebook (Flow B)", cmd: "python -m pipeline.facebook auth",
-      steps: "ใน Meta app เพิ่ม Facebook Login for Business และใส่ redirect https://warongkorn6560.github.io/shopee-pipeline/ จากนั้นรันคำสั่ง เลือกเพจ ระบบจะบันทึก FACEBOOK_PAGE_ID/TOKEN ลง GitHub ให้เอง (token เพจไม่หมดอายุ)",
-    },
-    {
-      name: "Instagram", cmd: "python -m pipeline.instagram auth",
-      steps: "token หมดอายุทุก 60 วัน (ตัวปัจจุบันหมดไปแล้วเมื่อ 19 ส.ค. 2026) รันคำสั่งเพื่อขอใหม่ แล้วตั้ง INSTAGRAM_ACCESS_TOKEN",
-    },
-    {
-      name: "TikTok", cmd: "python -m pipeline.tiktok auth",
-      steps: "ได้ TIKTOK_REFRESH_TOKEN สำหรับอัปโหลด · การโพสต์แบบสาธารณะต้องผ่าน app audit ของ TikTok (2–6 สัปดาห์)",
-    },
-  ];
+const SOCIAL: { id: Provider; name: string; flows: FlowId[]; note: string }[] = [
+  { id: "facebook", name: "เพจ Facebook", flows: ["story"], note: "โพสต์ Reels ลงเพจ · token เพจไม่หมดอายุ" },
+  { id: "instagram", name: "Instagram", flows: ["shopee", "story"], note: "บัญชี Professional · ระบบต่ออายุ token 60 วันให้เองทุกวัน" },
+  { id: "tiktok", name: "TikTok", flows: ["shopee", "story"], note: "แอปที่ยังไม่ผ่าน audit ของ TikTok โพสต์ได้แบบส่วนตัว (เห็นคนเดียว) เท่านั้น" },
+];
+
+async function Social() {
+  await requireSession();
+  const store = storeConfigured();
+  const data = store ? await settle(connections()) : null;
+  const vars = githubConfigured() ? await getVariables() : null;
+  const values = vars?.ok ? vars.value : null;
+  const metaReady = Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET);
+  const modes = FLOWS.map((f) => ({ flow: f, auto: effective(values, f.publishVar) === "auto" }));
   return (
     <Card>
       <div id="social" className="scroll-mt-24" />
-      <CardHeader eyebrow="จำเป็นเฉพาะโหมดโพสต์อัตโนมัติ" title="เชื่อมบัญชีโซเชียล" />
+      <Suspense><ConnectResult /></Suspense>
+      <CardHeader
+        eyebrow="กดเชื่อมครั้งเดียว ระบบเก็บ token ลง GitHub Secrets ให้เอง"
+        title="บัญชีโซเชียล & โพสต์อัตโนมัติ"
+        action={
+          <span className="flex flex-wrap gap-1.5">
+            {modes.map(({ flow, auto }) => (
+              <Pill key={flow.id} tone={auto ? "ok" : "idle"}>{flow.short}: {auto ? "โพสต์อัตโนมัติ" : "ตรวจก่อน"}</Pill>
+            ))}
+          </span>
+        }
+      />
+      {data && !data.ok && <div className="px-5 pt-3"><InlineError title="อ่านสถานะบัญชีไม่สำเร็จ" detail={data.error} /></div>}
       <ul className="mt-3 divide-y divide-line">
-        {items.map((i) => (
-          <li key={i.name} className="space-y-1.5 px-5 py-3.5">
-            <div className="text-sm font-medium text-ink">{i.name}</div>
-            <p className="text-sm text-ink-2">{i.steps}</p>
-            <Code>{i.cmd}</Code>
-          </li>
-        ))}
+        {SOCIAL.map((s) => {
+          const acc = data?.ok ? data.value.accounts[s.id] : null;
+          const ready = store && (s.id === "tiktok" ? Boolean(data?.ok && data.value.tiktokApp) : metaReady);
+          return (
+            <li key={s.id} className="space-y-2.5 px-5 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-ink">{s.name}</span>
+                    {s.flows.map((f) => <FlowTag key={f} flow={f} />)}
+                    {acc ? <Pill tone="ok">เชื่อมแล้ว · {acc.name}</Pill> : <Pill tone="idle">ยังไม่เชื่อม</Pill>}
+                  </div>
+                  <p className="text-xs text-ink-3">
+                    {s.note}
+                    {acc?.expiresAt && <> · token ใช้ได้ถึง {new Date(acc.expiresAt).toLocaleDateString("th-TH", { dateStyle: "medium" })}</>}
+                  </p>
+                </div>
+                <ConnectButtons provider={s.id} connected={Boolean(acc)} ready={Boolean(ready)} />
+              </div>
+              {s.id === "tiktok" && <TiktokAppForm saved={Boolean(data?.ok && data.value.tiktokApp)} />}
+            </li>
+          );
+        })}
       </ul>
-      <p className="px-5 pt-1 pb-5 text-xs text-ink-3">รันคำสั่งในโฟลเดอร์ shopee-pipeline บนเครื่องของคุณ · Shopee Video ไม่มี API ต้องอัปโหลดเองเสมอ (~30 วินาที)</p>
+      <p className="px-5 pt-1 pb-5 text-xs leading-relaxed text-ink-3">
+        เปิดโพสต์อัตโนมัติได้ที่ &ldquo;โหมดการโพสต์&rdquo; ของแต่ละ flow ด้านบน · ตอนโหมด auto ระบบโพสต์ไปทุกบัญชีที่เชื่อมไว้ และยังส่ง Telegram + หน้ารีวิวเหมือนเดิม
+        {!metaReady && " · ต้องตั้ง META_APP_ID / META_APP_SECRET ใน Vercel ก่อนเชื่อม Facebook/Instagram"}
+        {" "}· Shopee Video ไม่มี API ต้องอัปโหลดเองเสมอ
+      </p>
     </Card>
   );
 }

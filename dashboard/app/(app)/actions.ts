@@ -7,6 +7,7 @@ import { requireSession } from "@/lib/dal";
 import { VARIABLES, WORKFLOW_FILES } from "@/lib/flows";
 import * as gh from "@/lib/github";
 import { fillImages, parseAffiliateCsv, productImage } from "@/lib/shopee";
+import * as social from "@/lib/social";
 import * as store from "@/lib/store";
 import { SESSION_COOKIE } from "@/lib/session";
 
@@ -276,4 +277,48 @@ export async function removeClaudeKey(): Promise<ActionResult> {
 export async function logout(): Promise<void> {
   (await cookies()).delete(SESSION_COOKIE);
   redirect("/login");
+}
+
+// ---------------------------------------------------------------------------
+// Social accounts
+// ---------------------------------------------------------------------------
+const SOCIAL_LABEL = { facebook: "เพจ Facebook", instagram: "Instagram", tiktok: "TikTok" } as const;
+
+export async function disconnectSocial(provider: social.Provider): Promise<ActionResult> {
+  await requireSession();
+  if (!social.PROVIDERS.includes(provider)) return { ok: false, message: "ไม่รู้จักบริการนี้" };
+  try {
+    await social.disconnect(provider);
+  } catch (e) {
+    return fail(e, "ยกเลิกการเชื่อมไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: `ยกเลิกการเชื่อม ${SOCIAL_LABEL[provider]} แล้ว` };
+}
+
+export async function pickFacebookPage(id: string): Promise<ActionResult> {
+  await requireSession();
+  let name: string;
+  try {
+    name = await social.pickPage(id);
+  } catch (e) {
+    return fail(e, "บันทึกเพจไม่สำเร็จ");
+  }
+  redirect(`/settings?connected=facebook&name=${encodeURIComponent(name)}#social`);
+}
+
+export async function saveTiktokApp(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  await requireSession();
+  const key = String(form.get("clientKey") ?? "").trim();
+  const secret = String(form.get("clientSecret") ?? "").trim();
+  if (!/^[A-Za-z0-9]{8,64}$/.test(key) || secret.length < 16) {
+    return { ok: false, message: "Client key / secret ไม่ถูกรูปแบบ — คัดลอกจาก developers.tiktok.com → แอปของคุณ" };
+  }
+  try {
+    await social.saveTiktokApp(key, secret);
+  } catch (e) {
+    return fail(e, "บันทึกไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: "บันทึกแอป TikTok แล้ว — กดเชื่อม TikTok ได้เลย" };
 }

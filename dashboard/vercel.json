@@ -4,5 +4,11 @@
   "ignoreCommand": "git diff --quiet \"${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}\" HEAD -- .",
   "regions": [
     "sin1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/social-refresh",
+      "schedule": "0 20 * * *"
+    }
   ]
 }

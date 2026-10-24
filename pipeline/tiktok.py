@@ -71,6 +71,13 @@ def refresh_token(refresh_tok: str) -> str:
     return data["data"]["access_token"]
 
 
+def _privacy(headers: dict) -> str:
+    """Public when the app is allowed to; unaudited apps may only post SELF_ONLY."""
+    r = requests.post("https://open.tiktokapis.com/v2/post/publish/creator_info/query/", headers=headers, timeout=30)
+    options = (r.json().get("data") or {}).get("privacy_level_options") or []
+    return "PUBLIC_TO_EVERYONE" if "PUBLIC_TO_EVERYONE" in options else (options[0] if options else "SELF_ONLY")
+
+
 def post_video(video: Path, title: str, access_token: str) -> str:
     """Upload video to TikTok. Returns publish_id."""
     size = video.stat().st_size
@@ -78,12 +85,13 @@ def post_video(video: Path, title: str, access_token: str) -> str:
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json; charset=UTF-8",
     }
+    privacy = _privacy(headers)
 
     # 1) init upload
     r = requests.post(TIKTOK_INIT_URL, headers=headers, json={
         "post_info": {
             "title": title[:2200],
-            "privacy_level": "PUBLIC_TO_EVERYONE",
+            "privacy_level": privacy,
             "disable_duet": False,
             "disable_comment": False,
             "disable_stitch": False,
