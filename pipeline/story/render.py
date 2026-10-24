@@ -517,6 +517,111 @@ def _year_frame(bg: Image.Image, f: int, n: int, year_from: float, year_to: floa
 
 
 # ---------------------------------------------------------------------------
+# "reaction" editing style: mascot avatar, location chip, punch caption,
+# sticker callouts with a zoom-punch + shake, layered over any beat.
+# ---------------------------------------------------------------------------
+RED = (226, 54, 54)
+YELLOW = (255, 214, 64)
+
+
+def _scaled(sprite: Image.Image, k: float) -> Image.Image:
+    w, h = max(int(sprite.width * k), 1), max(int(sprite.height * k), 1)
+    return sprite.resize((w, h), Image.BILINEAR)
+
+
+def _chip_sprite(text: str) -> Image.Image | None:
+    t = _text_block(text, FONT_DISPLAY_MEDIUM_PATH, 40, (25, 25, 25, 255), max_w=640, max_lines=1, min_size=26)
+    if not t:
+        return None
+    w, h = t.width + 100, t.height + 26
+    chip = Image.new("RGBA", (w, h))
+    d = ImageDraw.Draw(chip)
+    d.rounded_rectangle((0, 0, w - 1, h - 1), radius=h // 2, fill=(255, 255, 255, 240), outline=(25, 25, 25, 255), width=4)
+    cx, cy = 42, h // 2 - 4                                             # map-pin icon
+    d.ellipse((cx - 15, cy - 17, cx + 15, cy + 13), fill=RED + (255,))
+    d.polygon([(cx - 12, cy + 4), (cx + 12, cy + 4), (cx, cy + 24)], fill=RED + (255,))
+    d.ellipse((cx - 6, cy - 8, cx + 6, cy + 4), fill=(255, 255, 255, 255))
+    chip.alpha_composite(t, (76, 12))
+    return chip
+
+
+def _punch_sprite(text: str) -> Image.Image | None:
+    t = _text_block(text, FONT_DISPLAY_PATH, 104, YELLOW + (255,), max_w=900, max_lines=2, stroke=10,
+                    align="center", min_size=60)
+    return t.rotate(3, resample=Image.BICUBIC, expand=True) if t else None
+
+
+def _burst_sprite(text: str) -> Image.Image | None:
+    t = _text_block(text, FONT_DISPLAY_PATH, 78, RED + (255,), max_w=440, max_lines=1, min_size=44)
+    if not t:
+        return None
+    r = max(t.width, t.height) // 2 + 70
+    img = Image.new("RGBA", (r * 2 + 20, r * 2 + 20))
+    d = ImageDraw.Draw(img)
+    c = r + 10
+    pts = [(c + (r if k % 2 == 0 else r * 0.78) * math.cos(k * math.pi / 12),
+            c + (r if k % 2 == 0 else r * 0.78) * math.sin(k * math.pi / 12)) for k in range(24)]
+    d.polygon(pts, fill=YELLOW + (255,), outline=(25, 25, 25, 255), width=6)
+    img.alpha_composite(t, (c - t.width // 2, c - t.height // 2))
+    return img.rotate(-8, resample=Image.BICUBIC, expand=True)
+
+
+def _label_sticker(text: str) -> Image.Image | None:
+    t = _text_block(text, FONT_DISPLAY_PATH, 70, (30, 30, 30, 255), max_w=520, max_lines=1, min_size=40)
+    if not t:
+        return None
+    w, h = t.width + 70, t.height + 40
+    img = Image.new("RGBA", (w + 20, h + 40))
+    d = ImageDraw.Draw(img)
+    d.rectangle((10, 20, 10 + w, 20 + h), fill=(255, 248, 225, 255), outline=(30, 30, 30, 255), width=5)
+    d.rectangle((w // 2 - 50, 6, w // 2 + 70, 38), fill=(255, 255, 255, 170))   # tape strip
+    img.alpha_composite(t, (45, 40))
+    return img.rotate(6, resample=Image.BICUBIC, expand=True)
+
+
+class _Reaction:
+    """Per-beat overlay for the reaction style; `apply` is called on every finished frame."""
+
+    def __init__(self, sc, n: int, avatar_cache: dict):
+        from . import mascot
+        emo = sc.emotion if sc.emotion in mascot.EMOTIONS else "neutral"
+        if emo not in avatar_cache:
+            avatar_cache[emo] = mascot.load(emo).resize((260, 260), Image.LANCZOS)
+        self.avatar = avatar_cache[emo]
+        self.chip = _chip_sprite(sc.place) if sc.place else None
+        self.punch = _punch_sprite(sc.punch) if sc.punch else None
+        kind = sc.callout_kind if sc.callout_text else "none"
+        self.callout = _burst_sprite(sc.callout_text) if kind == "number" else \
+            _label_sticker(sc.callout_text) if kind == "label" else None
+        self.kind = kind
+        self.reveal = max(int(n * 0.32), 4) if self.callout else None
+
+    def apply(self, frame: Image.Image, f: int) -> Image.Image:
+        out = frame.convert("RGBA")
+        if self.chip is not None:                                   # slide in from the left
+            k = _ease(f / 8)
+            out.alpha_composite(self.chip, (int(40 - (1 - k) * (self.chip.width + 60)), 72))
+        k = min(f / 7, 1.0)                                          # avatar pop + gentle bob
+        pop = 0.6 + 0.48 * math.sin(k * math.pi * 0.75) if k < 1 else 1.0
+        av = _scaled(self.avatar, pop) if abs(pop - 1) > 0.01 else self.avatar
+        bob = int(6 * math.sin(f / 9))
+        out.alpha_composite(av, (W - 40 - 130 - av.width // 2, 60 + 130 - av.height // 2 + bob))
+        if self.punch is not None and f >= 2:                        # punch caption pops in
+            k = min((f - 2) / 6, 1.0)
+            sp = _scaled(self.punch, 1.35 - 0.35 * _ease(k)) if k < 1 else self.punch
+            out.alpha_composite(sp, ((W - sp.width) // 2, 360 - sp.height // 2 + self.punch.height // 2))
+        if self.callout is not None and f >= self.reveal:            # sticker zoom-punch
+            k = min((f - self.reveal) / 6, 1.0)
+            cs = _scaled(self.callout, 1.5 - 0.5 * _ease(k)) if k < 1 else self.callout
+            x = W - 70 - cs.width if self.kind == "number" else 70
+            out.alpha_composite(cs, (x, 1000 - cs.height // 2))
+            if f - self.reveal < 5:                                  # short shake on the reveal
+                dx = (4 - (f - self.reveal)) * (7 if (f - self.reveal) % 2 else -7)
+                out = out.transform(out.size, Image.AFFINE, (1, 0, dx, 0, 1, dx // 2), Image.BILINEAR)
+        return out
+
+
+# ---------------------------------------------------------------------------
 # Assembly
 # ---------------------------------------------------------------------------
 MAX_MB = 44  # Telegram bots reject uploads over 50 MB
@@ -589,6 +694,10 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
     prev_kind = None
     last_photo: Image.Image | None = None
     last_year = 0.0
+    reaction = getattr(plan, "style", "classic") == "reaction"
+    avatar_cache: dict = {}
+    pops: list[float] = []
+    t0 = 0.0
 
     for i, (sc, d) in enumerate(zip(plan.scenes, beat_durs)):
         n = max(int(round(d * FPS)), 1)
@@ -596,6 +705,12 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
         card = _card_sprite(plan.hook_title or sc.card_title if hook else sc.card_title,
                             plan.hook_subtitle or sc.card_subtitle if hook else sc.card_subtitle,
                             sc.card_fact, hook=hook)
+        rx = _Reaction(sc, n, avatar_cache) if reaction else None
+        if rx:
+            card = None                       # the punch caption + chip replace the title card
+            if rx.reveal is not None:
+                pops.append(t0 + rx.reveal / FPS)
+        t0 += d
         chunks = _subtitle_chunks(sc.narration)
         weights = [max(len(c), 1) for c in chunks]
         bounds = np.cumsum(weights) / sum(weights) * n
@@ -626,7 +741,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
                                       sub=sub, credit=None)
                 if prev_kind and prev_kind != kind and f < CROSSFADE and writer.last is not None:
                     out = Image.blend(writer.last.convert("RGBA"), out, (f + 1) / CROSSFADE)
-                writer.write(out)
+                writer.write(rx.apply(out, f) if rx else out)
             last_year = y_to or last_year
             prev_kind = kind
             continue
@@ -647,7 +762,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
                 out = _overlay_screen(_archival(fr, f), card=card, card_t=f, sub=sub, credit=credit)
                 if prev_kind and prev_kind != kind and f < CROSSFADE and writer.last is not None:
                     out = Image.blend(writer.last.convert("RGBA"), out, (f + 1) / CROSSFADE)
-                writer.write(out)
+                writer.write(rx.apply(out, f) if rx else out)
             prev_kind = kind
             continue
 
@@ -711,7 +826,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
                                   labels=placed_labels, pins=placed_pins)
             if prev_kind and prev_kind != kind and f < CROSSFADE and writer.last is not None:
                 out = Image.blend(writer.last.convert("RGBA"), out, (f + 1) / CROSSFADE)
-            writer.write(out)
+            writer.write(rx.apply(out, f) if rx else out)
 
         cam_lon, cam_lat, cam_span = end
         context += [ov for ov in g.overlays if ov.primary and ov.lines][:1]
@@ -719,7 +834,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
         prev_kind = kind
 
     writer.close()
-    return _mix(silent, voice, beat_durs, OUTPUT_DIR / out_name, run_dir)
+    return _mix(silent, voice, beat_durs, OUTPUT_DIR / out_name, run_dir, pops)
 
 
 # ---------------------------------------------------------------------------
@@ -747,7 +862,18 @@ def _music() -> Path | None:
     return (preferred or tracks or [None])[0]
 
 
-def _mix(silent: Path, voice: Path, beat_durs: list[float], final: Path, run_dir: Path) -> Path:
+def _pop(run_dir: Path) -> Path:
+    path = run_dir / "pop.wav"
+    if not path.exists():
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i",
+                        "sine=frequency=880:duration=0.12", "-af",
+                        "asetrate=44100*1.5,aresample=44100,afade=t=out:st=0.02:d=0.1,volume=0.8", str(path)],
+                       check=True)
+    return path
+
+
+def _mix(silent: Path, voice: Path, beat_durs: list[float], final: Path, run_dir: Path,
+         pops: list[float] | None = None) -> Path:
     total = sum(beat_durs)
     music = _music()
     whoosh = _whoosh(run_dir)
@@ -769,6 +895,11 @@ def _mix(silent: Path, voice: Path, beat_durs: list[float], final: Path, run_dir
         ms = max(int((s - 0.3) * 1000), 0)
         graph.append(f"[{idx}:a]aresample=44100,adelay={ms}:all=1,volume=0.35[w{k}]")
         mix.append(f"[w{k}]")
+        idx += 1
+    for k, t in enumerate(pops or []):
+        inputs += ["-i", str(_pop(run_dir))]
+        graph.append(f"[{idx}:a]aresample=44100,adelay={int(t * 1000)}:all=1,volume=0.3[p{k}]")
+        mix.append(f"[p{k}]")
         idx += 1
     graph.append(f"{''.join(mix)}amix=inputs={len(mix)}:duration=longest:normalize=0,"
                  "loudnorm=I=-15:TP=-1.5:LRA=11[a]")

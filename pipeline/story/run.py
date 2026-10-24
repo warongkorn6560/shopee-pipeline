@@ -19,7 +19,7 @@ import traceback
 
 from .. import hub, llm, stats, voiceover
 from ..config import (
-    STORY_CHANNEL_ID,
+    STORY_CHANNEL_ID, STORY_STYLE, STORY_STYLE_MIX,
     COST_CAP_USD, OUTPUT_DIR, PUBLISH_MODE, STORY_AUTO_TOPIC, STORY_IMAGE_PRICE_USD,
     STORY_MAX_AI_IMAGES, STORY_SERIES_NAME, STORY_VOICE_ID, THAI_VOICES, WORK_DIR,
 )
@@ -59,6 +59,24 @@ def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str
     review = (f"📖 {STORY_SERIES_NAME} — {plan.title}\n\n{social}\n\n"
               f"หัวข้อ: {plan.topic}\nโหมด: {PUBLISH_MODE}")
     return review, social
+
+
+def _pick_style() -> str:
+    """Weighted pick from STORY_STYLE_MIX ("classic:80,reaction:20"); STORY_STYLE forces one."""
+    known = ("classic", "reaction")
+    if STORY_STYLE in known:
+        return STORY_STYLE
+    weights = {}
+    for part in STORY_STYLE_MIX.split(","):
+        name, _, w = part.partition(":")
+        if name.strip() in known:
+            try:
+                weights[name.strip()] = max(float(w or 0), 0)
+            except ValueError:
+                pass
+    if not sum(weights.values()):
+        return "classic"
+    return random.choices(list(weights), weights=list(weights.values()))[0]
 
 
 def _pick_topic(override: str | None, live: bool) -> topics.Topic | None:
@@ -109,7 +127,11 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
     if live:
         topics.update(topic.ref, runUrl=run_url(), lastError="")
     try:
-        plan = writer.mock_story(topic.topic) if offline else writer.write_reviewed_story(topic.topic, topic.angle)
+        style = _pick_style()
+        print(f"  style: {style}")
+        plan = writer.mock_story(topic.topic) if offline else writer.write_reviewed_story(topic.topic, topic.angle, style)
+        if offline:
+            plan.style = style
         print(f"  title: {plan.title} · {len(plan.scenes)} beats · {len(plan.spoken)} spoken chars")
         if dry_run:
             print(json.dumps({"title": plan.title, "scenes": [s.__dict__ for s in plan.scenes],
@@ -159,7 +181,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
             pathname=up["pathname"], size=final.stat().st_size, caption=social,
             reviewText=plan.narration, sources=plan.sources, runUrl=run_url(),
             cost={**llm.USAGE, "ttsChars": len(plan.spoken)},
-            channelId=STORY_CHANNEL_ID,
+            channelId=STORY_CHANNEL_ID, style=plan.style,
         )
         hub.register_video(**video, status="review")
         # Instagram fetches the video from a URL: hand it a short-lived link to our own copy.

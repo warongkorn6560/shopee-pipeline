@@ -18,6 +18,10 @@ on:
         type: boolean
         required: false
         default: false
+      style:
+        description: "Editing style for this run: classic or reaction (empty = STORY_STYLE_MIX)"
+        required: false
+        default: ""
       count:
         description: "Burst: how many videos to make back to back (one after another, each posted when done)"
         required: false
@@ -28,7 +32,8 @@ on:
         default: ""
 
 concurrency:
-  group: story-video
+  # previews run beside a burst instead of queueing behind it
+  group: story-video-${{ inputs.preview && 'preview' || 'main' }}
   cancel-in-progress: false
 
 jobs:
@@ -108,6 +113,8 @@ jobs:
           TTS_MODEL: ${{ vars.TTS_MODEL || 'eleven_v4' }}
           STORY_TARGET_SECONDS: ${{ inputs.seconds || vars.STORY_TARGET_SECONDS || '75' }}
           STORY_THEME: ${{ matrix.theme || vars.STORY_THEME || 'wildlife' }}
+          STORY_STYLE_MIX: ${{ vars.STORY_STYLE_MIX || 'classic:80,reaction:20' }}
+          STORY_STYLE: ${{ inputs.style }}
           STORY_MUSIC: ${{ vars.STORY_MUSIC }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           TTS_PROVIDER: elevenlabs

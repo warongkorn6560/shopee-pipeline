@@ -45,7 +45,7 @@ _ENV_KEYS = (
     "STORY_AUTO_TOPIC", "STORY_VOICE_ID", "STORY_LLM_MODEL", "STORY_MAX_AI_IMAGES",
     "GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
     "DASHBOARD_URL", "PIPELINE_API_KEY",
-    "CLAUDE_MODEL", "CLAUDE_EFFORT", "TTS_MODEL", "SHOP_VOICE_ID", "STORY_TARGET_SECONDS", "STORY_MUSIC", "STORY_THEME", "STORY_CHANNEL_ID", "STORY_CHANNEL_PRIMARY",
+    "CLAUDE_MODEL", "CLAUDE_EFFORT", "TTS_MODEL", "SHOP_VOICE_ID", "STORY_TARGET_SECONDS", "STORY_MUSIC", "STORY_THEME", "STORY_CHANNEL_ID", "STORY_CHANNEL_PRIMARY", "STORY_STYLE_MIX", "STORY_STYLE",
     "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN",
 )
 
@@ -184,6 +184,9 @@ STORY_NICHE = _get("STORY_NICHE", _theme[1])
 STORY_MUSIC = _get("STORY_MUSIC", _theme[2])   # file in assets/music/story
 # Set per matrix job by story-video.yml: the dashboard channel (Facebook Page) this run is for.
 STORY_CHANNEL_ID = _get("STORY_CHANNEL_ID", "")
+# Editing styles, weighted: "classic:80,reaction:20". STORY_STYLE forces one for a run.
+STORY_STYLE_MIX = _get("STORY_STYLE_MIX", "classic:80,reaction:20")
+STORY_STYLE = _get("STORY_STYLE", "").lower()
 STORY_CHANNEL_PRIMARY = _get("STORY_CHANNEL_PRIMARY", "true").lower() in ("1", "true", "yes")
 # auto      : AI illustration for "scene" visuals when available, real Wikimedia
 #             Commons images for maps/photos, designed text cards as last resort

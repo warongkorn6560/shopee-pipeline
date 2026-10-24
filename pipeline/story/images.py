@@ -74,7 +74,8 @@ def _relevant(title: str, query: str) -> bool:
 
 
 _NOT_PHOTO = re.compile(r"\b(map|locator|location|results?|chart|diagram|flag|logo|seal|statue|fountain|stamp|"
-                        r"coin|illustration|drawing|painting|skeleton)\b|\.svg$", re.I)
+                        r"coin|illustration|drawing|painting|skeleton|monument|sculpture|memorial|roundabout|"
+                        r"museum|taxidermy|stuffed|toy|mascot)\b|\.svg$", re.I)
 
 
 def _commons_search(query: str, used: set[int], lock: threading.Lock,

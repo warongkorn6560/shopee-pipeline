@@ -52,6 +52,35 @@ STORY_SCHEMA = _obj({
     "post_caption": _S, "comment_question": _S,
     "hashtags": {"type": "array", "items": _S},
 })
+# The "reaction" editing style adds a mascot reaction, a location chip and sticker callouts per beat.
+REACTION_BEAT_SCHEMA = _obj({
+    **BEAT_SCHEMA["properties"],
+    "emotion": {"type": "string", "enum": ["neutral", "shock", "think", "worry", "happy", "mindblown"]},
+    "punch": _S, "place": _S,
+    "callout_kind": {"type": "string", "enum": ["number", "label", "none"]},
+    "callout_text": _S,
+})
+REACTION_STORY_SCHEMA = _obj({**STORY_SCHEMA["properties"],
+                              "beats": {"type": "array", "items": REACTION_BEAT_SCHEMA}})
+REACTION_STYLE = """
+
+EDITING STYLE: "reaction". The video is cut like a fun explainer with a cartoon pangolin ranger who
+reacts to every line, so write with more energy: short punchy sentences, a surprise in every beat,
+conversational Thai ("รู้ไหม…", "เดี๋ยวนะ…", "ใช่ครับ…" style rhythm without slang). Every fact rule
+above still applies exactly — the energy is in the delivery, never in exaggeration.
+
+EXTRA FIELDS PER BEAT
+- emotion: the mascot's reaction to this line — shock (a surprising number), think (a question),
+  worry (a threat or decline), happy (good news, recovery), mindblown (the most amazing fact; use it
+  1-2 times), neutral (plain context).
+- punch: 2-4 Thai words, ≤ 16 characters, the one phrase to slam on screen (e.g. "หนัก 300 กก.!",
+  "เหลือแค่ 14 ตัว").
+- place: the location chip for this beat, ≤ 24 characters (e.g. "เกาะลิบง · ตรัง", "ห้วยขาแข้ง"),
+  or "" when the beat has no specific place.
+- callout_kind: "number" for a big counter sticker, "label" for a tilted paper label, "none" otherwise.
+  Use number/label on about half the beats.
+- callout_text: the sticker text, ≤ 14 characters (a number with unit like "+51 ตัว", "2.7 ม.", or a
+  short label like "หายากสุด!"), "" when callout_kind is none."""
 TOPIC_SCHEMA = _obj({"topic": _S, "angle": _S})
 RESEARCH_SCHEMA = _obj({"articles": {"type": "array", "items": _obj({"lang": {"type": "string", "enum": ["th", "en"]}, "title": _S})}})
 
@@ -285,6 +314,11 @@ class StoryScene:
     span_start_km: float = 60.0
     span_end_km: float = 30.0
     year: float = 0.0
+    emotion: str = "neutral"     # reaction style only
+    punch: str = ""
+    place: str = ""
+    callout_kind: str = "none"
+    callout_text: str = ""
 
 
 @dataclass
@@ -299,6 +333,7 @@ class StoryPlan:
     hook_subtitle: str = ""
     region: dict = field(default_factory=dict)
     comment_question: str = ""
+    style: str = "classic"
 
     @property
     def narration(self) -> str:
@@ -411,10 +446,15 @@ def _scene(b: dict) -> StoryScene:
         labels=[str(x).strip() for x in (b.get("labels") or []) if str(x).strip()][:6],
         span_start_km=start, span_end_km=end,
         year=_clamp(b.get("year"), 0, 3000, 0),
+        emotion=str(b.get("emotion", "neutral")),
+        punch=str(b.get("punch", "")).strip()[:20],
+        place=str(b.get("place", "")).strip()[:28],
+        callout_kind=str(b.get("callout_kind", "none")),
+        callout_text=str(b.get("callout_text", "")).strip()[:16],
     )
 
 
-def write_story(topic: str, angle: str = "") -> StoryPlan:
+def write_story(topic: str, angle: str = "", style: str = "classic") -> StoryPlan:
     notes = research(topic, angle)
     notes_text = "\n\n".join(f"[{label}]\n{text}" for label, text in notes) or \
         "(no notes found — use only facts that are common textbook knowledge)"
@@ -425,8 +465,10 @@ def write_story(topic: str, angle: str = "") -> StoryPlan:
         THEME["story"].format(topic=topic, angle=angle or "-", notes=notes_text, seconds=seconds,
                             chars_min=int(seconds * CHARS_PER_SECOND * 0.85),
                             chars_max=int(seconds * CHARS_PER_SECOND * 1.1),
-                            series=STORY_SERIES_NAME, series_tag=series_tag),
-        schema=STORY_SCHEMA, max_tokens=32000, gateway_model="openai/gpt-4.1-mini",
+                            series=STORY_SERIES_NAME, series_tag=series_tag)
+        + (REACTION_STYLE if style == "reaction" else ""),
+        schema=REACTION_STORY_SCHEMA if style == "reaction" else STORY_SCHEMA,
+        max_tokens=32000, gateway_model="openai/gpt-4.1-mini",
     )
     scenes = [_scene(b) for b in data.get("beats", []) if str(b.get("narration", "")).strip()][:16]
     if len(scenes) < 5:
@@ -441,6 +483,7 @@ def write_story(topic: str, angle: str = "") -> StoryPlan:
         hook_subtitle=str(data.get("hook_subtitle", "")).strip()[:40],
         region={k: region.get(k) for k in ("name", "west", "south", "east", "north")},
         comment_question=str(data.get("comment_question", "")).strip(),
+        style=style,
     )
 
 
@@ -485,7 +528,8 @@ def royal_term_hits(plan: "StoryPlan") -> list[str]:
     fields = [plan.title, plan.hook_title, plan.hook_subtitle, plan.post_caption, plan.comment_question,
               " ".join(plan.hashtags)]
     for sc in plan.scenes:
-        fields += [sc.narration, sc.spoken, sc.card_title, sc.card_subtitle, sc.card_fact, " ".join(sc.labels)]
+        fields += [sc.narration, sc.spoken, sc.card_title, sc.card_subtitle, sc.card_fact, " ".join(sc.labels),
+                   sc.punch, sc.place, sc.callout_text]
     text = " ".join(f for f in fields if f)
     for phrase in _ALLOWED_PHRASES:
         text = text.replace(phrase, " ")
@@ -495,6 +539,7 @@ def royal_term_hits(plan: "StoryPlan") -> list[str]:
 def compliance_review(plan: "StoryPlan") -> tuple[bool, list[str]]:
     hits = royal_term_hits(plan)
     beats = "\n".join(f"{i + 1}. [{s.card_title} | {s.card_subtitle} | {s.card_fact}] {s.narration}"
+                      + (f" (on-screen: {s.punch} · {s.callout_text} · {s.place})" if plan.style == "reaction" else "")
                       for i, s in enumerate(plan.scenes))
     data = generate_json(
         COMPLIANCE_SYSTEM,
@@ -509,16 +554,16 @@ def compliance_review(plan: "StoryPlan") -> tuple[bool, list[str]]:
     return bool(data.get("pass")) and not hits, issues
 
 
-def write_reviewed_story(topic: str, angle: str = "") -> "StoryPlan":
+def write_reviewed_story(topic: str, angle: str = "", style: str = "classic") -> "StoryPlan":
     """Write → standards review → one rewrite with the editor's notes → fail closed."""
-    plan = write_story(topic, angle)
+    plan = write_story(topic, angle, style)
     ok, issues = compliance_review(plan)
     if ok:
         print("  [review] passed standards check")
         return plan
     print(f"  [review] failed: {issues}")
     plan = write_story(topic, (angle + "\n\nThe previous draft FAILED the standards review for these reasons — "
-                               "fix every one:\n- " + "\n- ".join(issues)).strip())
+                               "fix every one:\n- " + "\n- ".join(issues)).strip(), style)
     ok, issues = compliance_review(plan)
     if not ok:
         raise ComplianceError("ไม่ผ่านการตรวจมาตรฐานเนื้อหา: " + " | ".join(issues))
