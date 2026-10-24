@@ -184,9 +184,29 @@ export async function presignedPlayback(pathname: string, minutes = 120): Promis
 }
 
 /** Delete video files older than the retention window; keeps their records. */
+// Storage guard: posted clips only need their file for a week (retries), the rest
+// for 30 days, and the store never grows past STORE_CAP_BYTES (oldest go first).
+export const POSTED_RETENTION_DAYS = 7;
+const STORE_CAP_BYTES = 4 * 1024 ** 3;
+
+const wasPosted = (v: Video) => v.status === "posted" || Object.values(v.published ?? {}).some(
+  (r) => r && typeof r === "object" && !("error" in r) && !("skipped" in r),
+);
+
 export async function expireOldVideos(): Promise<number> {
-  const cutoff = Date.now() - VIDEO_RETENTION_DAYS * 86_400_000;
-  const stale = (await list("videos")).filter((v) => v.pathname && Date.parse(v.createdAt) < cutoff);
+  const now = Date.now();
+  const files = (await list("videos")).filter((v) => v.pathname).sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+  const stale = files.filter((v) => {
+    const age = now - Date.parse(v.createdAt);
+    return age > VIDEO_RETENTION_DAYS * 86_400_000 || (wasPosted(v) && age > POSTED_RETENTION_DAYS * 86_400_000);
+  });
+  let total = files.filter((v) => !stale.includes(v)).reduce((t, v) => t + (v.size || 0), 0);
+  for (const v of [...files.filter(wasPosted), ...files.filter((x) => !wasPosted(x))]) {
+    if (total <= STORE_CAP_BYTES) break;
+    if (stale.includes(v) || v.status === "review") continue;
+    stale.push(v);
+    total -= v.size || 0;
+  }
   if (!stale.length) return 0;
   await del(stale.map((v) => v.pathname!));
   await mutate("videos", (items) => {

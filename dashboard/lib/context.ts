@@ -9,7 +9,7 @@ import type { StatusContext } from "./status";
 import type { Video } from "./store";
 
 /** Month-to-date Claude spend (Bangkok calendar month), summed from the per-video cost reports. */
-function claudeThisMonth(videos: Video[]): ClaudeMonth {
+export function claudeThisMonth(videos: Video[]): ClaudeMonth {
   const month = (d: Date) => new Date(d.getTime() + 7 * 3_600_000).toISOString().slice(0, 7);
   const now = month(new Date());
   const mine = videos.filter((v) => month(new Date(v.createdAt)) === now);

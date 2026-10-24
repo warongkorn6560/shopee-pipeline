@@ -8,6 +8,7 @@ import { VARIABLES, WORKFLOW_FILES } from "@/lib/flows";
 import * as gh from "@/lib/github";
 import { fillImages, parseAffiliateCsv, productImage } from "@/lib/shopee";
 import * as channels from "@/lib/channels";
+import { claudeThisMonth } from "@/lib/context";
 import * as posting from "@/lib/post-video";
 import * as social from "@/lib/social";
 import * as store from "@/lib/store";
@@ -58,6 +59,13 @@ export async function runStoryBurst(count: number, preview: boolean, style = "")
   const n = Math.round(Number(count));
   if (!Number.isFinite(n) || n < 1 || n > 60) return { ok: false, message: "จำนวนคลิปต้องอยู่ระหว่าง 1–60" };
   try {
+    // Don't start a burst the Claude budget can't cover (≈$0.6 per clip, worst case).
+    const [vars, videos] = await Promise.all([gh.listVariables(), store.list("videos")]);
+    const limit = Number(vars.CLAUDE_MONTHLY_BUDGET?.value) || 100;
+    const left = limit - claudeThisMonth(videos).usd;
+    if (n * 0.6 > left) {
+      return { ok: false, message: `งบ Claude เดือนนี้เหลือ $${Math.max(0, left).toFixed(2)} — พอสำหรับราว ${Math.max(0, Math.floor(left / 0.6))} คลิป (ปรับงบได้ที่แท็บ AI & เสียง)` };
+    }
     const pick = ["classic", "reaction"].includes(style) ? style : "";
     await gh.dispatch("story-video.yml", { count: String(n), preview: String(preview), ...(pick ? { style: pick } : {}) });
   } catch (e) {

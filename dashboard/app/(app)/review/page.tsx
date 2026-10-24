@@ -11,7 +11,7 @@ import { summary } from "@/lib/stats";
 import { primaryChannelId } from "@/lib/channels";
 import { readDoc } from "@/lib/social";
 import { PLATFORMS, explainError, pending } from "@/lib/posting";
-import { VIDEO_RETENTION_DAYS, storeConfigured, type Video, type VideoStatus } from "@/lib/store";
+import { POSTED_RETENTION_DAYS, VIDEO_RETENTION_DAYS, storeConfigured, type Video, type VideoStatus } from "@/lib/store";
 
 export const metadata: Metadata = { title: "รีวิววิดีโอ" };
 
@@ -34,7 +34,7 @@ export default function ReviewPage({ searchParams }: PageProps<"/review">) {
     <div className="space-y-6">
       <PageHeader
         title="รีวิววิดีโอ"
-        subtitle={`ทุกคลิปที่ระบบทำเสร็จจะมาอยู่ที่นี่ (และแจ้งใน Telegram) · ไฟล์เก็บ ${VIDEO_RETENTION_DAYS} วัน`}
+        subtitle={`ทุกคลิปที่ระบบทำเสร็จจะมาอยู่ที่นี่ (และแจ้งใน Telegram) · ไฟล์เก็บ ${VIDEO_RETENTION_DAYS} วัน (โพสต์แล้วเก็บ ${POSTED_RETENTION_DAYS} วัน)`}
       />
       <Suspense fallback={<Skeleton className="h-[520px] rounded-2xl" />}>
         <ReviewContent searchParams={searchParams} />
@@ -126,7 +126,7 @@ function VideoCard({ v, primaryId, youtube }: { v: Video; primaryId: string; you
           />
         ) : (
           <div className="flex aspect-[9/16] max-h-[520px] w-full flex-col items-center justify-center gap-2 text-sm text-white/60">
-            <FileX className="size-6" /> ไฟล์หมดอายุแล้ว (เก็บ {VIDEO_RETENTION_DAYS} วัน)
+            <FileX className="size-6" /> ไฟล์หมดอายุแล้ว
           </div>
         )}
       </div>

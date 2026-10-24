@@ -1,6 +1,8 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { channelToken, channels, primaryChannelId } from "@/lib/channels";
+import { claudeThisMonth } from "@/lib/context";
+import { effective, getVariables } from "@/lib/data";
 import { fillImages, productImage } from "@/lib/shopee";
 import {
   expireOldVideos, list, mutate, newId, now, presignedPlayback, presignedUpload,
@@ -32,6 +34,13 @@ function releaseStale<T extends { status: string; updatedAt: string; lastError?:
       it.updatedAt = now();
     }
   }
+}
+
+async function claudeBudget(): Promise<{ over: boolean; spent: number; limit: number }> {
+  const vars = await getVariables().catch(() => null);
+  const limit = Number(effective(vars?.ok ? vars.value : null, "CLAUDE_MONTHLY_BUDGET")) || 100;
+  const spent = claudeThisMonth(await list("videos")).usd;
+  return { over: spent >= limit, spent, limit };
 }
 
 function parseCost(raw: unknown): Video["cost"] {
@@ -73,6 +82,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
   switch (action) {
     case "claim": {
       if (!isFlow(body.flow)) return bad("flow must be shopee or story");
+      // Hard stop: no new video (either flow) once this month's Claude spend reaches CLAUDE_MONTHLY_BUDGET.
+      const budget = await claudeBudget();
+      if (budget.over) {
+        return NextResponse.json({ item: null, stop: "budget", message: `Claude ใช้ไป $${budget.spent.toFixed(2)} ครบงบ $${budget.limit} เดือนนี้แล้ว` });
+      }
       if (body.flow === "shopee") {
         const item = await mutate("products", (items) => {
           releaseStale(items);
@@ -217,6 +231,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         return n;
       });
       if (action === "video-stats" && !found) return bad("not found", 404);
+      await expireOldVideos().catch(() => 0);
       return NextResponse.json({ ok: true, updated: found });
     }
 

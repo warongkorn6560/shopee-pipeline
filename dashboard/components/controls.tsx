@@ -217,7 +217,7 @@ export function StatsRefresh({ updatedAt, running }: { updatedAt: string | null;
   const busy = running || (waiting !== null && !arrived);
   useEffect(() => {
     if (!busy) return;
-    const id = setInterval(() => router.refresh(), 10_000);
+    const id = setInterval(() => { if (document.visibilityState === "visible") router.refresh(); }, 10_000);
     const stop = setTimeout(() => setWaiting(null), 4 * 60_000);
     return () => { clearInterval(id); clearTimeout(stop); };
   }, [busy, router]);
@@ -243,7 +243,8 @@ export function AutoRefresh({ active, seconds = 12 }: { active: boolean; seconds
   const router = useRouter();
   useEffect(() => {
     if (!active) return;
-    const id = setInterval(() => router.refresh(), seconds * 1000);
+    // Skip refreshes while the tab is hidden, so a page left open during a long burst costs nothing.
+    const id = setInterval(() => { if (document.visibilityState === "visible") router.refresh(); }, seconds * 1000);
     return () => clearInterval(id);
   }, [active, seconds, router]);
   return null;
