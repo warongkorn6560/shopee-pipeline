@@ -1,9 +1,9 @@
 import "server-only";
 import { BlobPreconditionFailedError, get, issueSignedToken, presignUrl, put, del } from "@vercel/blob";
 
-// The dashboard's own data lives as three JSON documents in the private Blob
+// The dashboard's own data lives as JSON documents in the private Blob
 // store "pipeline-data", next to the rendered videos:
-//   data/products.json  data/stories.json  data/videos.json   videos/<id>.mp4
+//   data/products.json  data/stories.json  data/videos.json  data/channels.json   videos/<id>.mp4
 // Writes are optimistic: read with an ETag, write with ifMatch, retry on conflict.
 
 export type ProductStatus = "New" | "Ready" | "Producing" | "Posted" | "Failed" | "Hold";
@@ -37,6 +37,7 @@ export interface Story {
   published?: string;
   lastError?: string;
   videoId?: string;
+  channelId?: string; // unset = the primary channel
   source: "sheet" | "manual" | "auto";
   createdAt: string;
   updatedAt: string;
@@ -61,7 +62,23 @@ export interface Video {
   reviewedAt?: string;
 }
 
-type Collections = { products: Product; stories: Story; videos: Video };
+/** A page the story flow publishes to, with its own content settings. */
+export interface Channel {
+  id: string;
+  platform: "facebook";
+  pageId: string;
+  name: string;
+  theme: string; // STORY_THEME value
+  seriesName: string; // "" = the theme's default
+  niche: string; // "" = the theme's default
+  publishMode: "review" | "auto";
+  enabled: boolean;
+  tokenEnc: string; // page token, AES-GCM sealed (lib/channels.ts)
+  connectedAt: string;
+  updatedAt: string;
+}
+
+type Collections = { products: Product; stories: Story; videos: Video; channels: Channel };
 type Name = keyof Collections;
 
 const path = (name: Name) => `data/${name}.json`;

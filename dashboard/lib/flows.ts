@@ -104,6 +104,9 @@ export interface VarDef {
   danger?: string; // shown when this value is selected
 }
 
+/** Series label each STORY_THEME uses when none is set (mirrors pipeline/config.py). */
+export const THEME_SERIES: Record<string, string> = { wildlife: "สัตว์ไทยน่ารู้", politics: "ย้อนรอยการเมืองไทย" };
+
 export const VARIABLES: VarDef[] = [
   {
     name: "PUBLISH_MODE", label: "โหมดการโพสต์", scope: "shopee", kind: "segmented",

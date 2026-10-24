@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { channelToken, channels, primaryChannelId } from "@/lib/channels";
 import { fillImages, productImage } from "@/lib/shopee";
 import {
   expireOldVideos, list, mutate, newId, now, presignedUpload,
@@ -36,6 +37,12 @@ function releaseStale<T extends { status: string; updatedAt: string; lastError?:
 const PRODUCT_PATCH = ["status", "lastError", "videoId", "image"] as const;
 const STORY_PATCH = ["status", "title", "runUrl", "published", "lastError", "videoId"] as const;
 
+export async function GET(req: Request, { params }: { params: Promise<{ action: string }> }) {
+  if (!authorized(req)) return bad("unauthorized", 401);
+  if ((await params).action !== "channels") return bad("unknown action", 404);
+  return NextResponse.json(await channels());
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ action: string }> }) {
   if (!authorized(req)) return bad("unauthorized", 401);
   const { action } = await params;
@@ -66,9 +73,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         }
         return NextResponse.json({ item });
       }
+      // Each channel claims its own topics; topics without a channel belong to the primary one.
+      const primaryId = await primaryChannelId();
+      const target = typeof body.channelId === "string" && body.channelId ? body.channelId : primaryId;
+      const mine = (s: Story) => (s.channelId || primaryId) === target;
       const item = await mutate("stories", (items) => {
         releaseStale(items);
-        const s = items.find((x) => x.status === "Ready");
+        const s = items.find((x) => x.status === "Ready" && mine(x));
         if (s) {
           s.status = "Producing";
           s.updatedAt = now();
@@ -76,7 +87,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         return s ? { ...s } : null;
       });
       if (item) return NextResponse.json({ item });
-      const previousTopics = (await list("stories")).map((s) => s.topic);
+      const previousTopics = (await list("stories")).filter(mine).map((s) => s.topic);
       return NextResponse.json({ item: null, previousTopics });
     }
 
@@ -98,10 +109,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
       // Start (or queue) a specific topic; reuses the existing entry for the same topic.
       const topic = String(body.topic ?? "").trim().slice(0, 140);
       if (!topic) return bad("topic required");
+      const channelId = typeof body.channelId === "string" && body.channelId ? body.channelId : undefined;
       const status = body.status === "Producing" ? "Producing" : "Ready";
       const source = body.source === "auto" ? "auto" : "manual";
       const item = await mutate("stories", (items) => {
-        const existing = items.find((s) => s.topic === topic);
+        const existing = items.find((s) => s.topic === topic && s.channelId === channelId);
         if (existing) {
           if (existing.status !== "Producing") {
             existing.status = status;
@@ -112,12 +124,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         }
         const story: Story = {
           id: newId(), topic, angle: String(body.angle ?? "").slice(0, 300), status,
-          source, createdAt: now(), updatedAt: now(),
+          source, channelId, createdAt: now(), updatedAt: now(),
         };
         items.push(story);
         return story;
       });
       return NextResponse.json({ item });
+    }
+
+    case "channels":
+      return NextResponse.json(await channels());
+
+    case "channel-token": {
+      // The page token for publishing; only ever returned to the pipeline key.
+      if (typeof body.channelId !== "string") return bad("channelId required");
+      const got = await channelToken(body.channelId);
+      if (!got) return bad("channel not found", 404);
+      return NextResponse.json({ channelId: got.channel.id, pageId: got.channel.pageId, name: got.channel.name, token: got.token });
     }
 
     case "upload-url": {

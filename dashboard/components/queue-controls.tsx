@@ -158,12 +158,14 @@ export function AddProductForm() {
   );
 }
 
-export function AddStoryForm() {
+export function AddStoryForm({ channels = [] }: { channels?: { id: string; name: string }[] }) {
   const [state, action, pending] = useActionState(addStory, null);
   const ref = useRef<HTMLFormElement>(null);
   useFormToast(state, ref);
+  const pick = channels.length > 1;
   return (
-    <form ref={ref} action={action} className="grid gap-3 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] sm:items-end">
+    <form ref={ref} action={action} className={cx("grid gap-3 sm:items-end",
+      pick ? "sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.8fr)_auto]" : "sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto]")}>
       <label className="space-y-1" htmlFor="s-topic">
         <span className="text-xs text-ink-2">หัวข้อ (เป็นคำถามชวนสงสัยจะดีที่สุด) *</span>
         <input id="s-topic" name="topic" required maxLength={140} className={input} placeholder="ทำไมญี่ปุ่นถึงมีภูเขาไฟเยอะ" />
@@ -172,6 +174,14 @@ export function AddStoryForm() {
         <span className="text-xs text-ink-2">มุมเล่า</span>
         <input id="s-angle" name="angle" maxLength={300} className={input} placeholder="เล่าผ่านแผนที่วงแหวนแห่งไฟ" />
       </label>
+      {pick && (
+        <label className="space-y-1" htmlFor="s-channel">
+          <span className="text-xs text-ink-2">ลงเพจ</span>
+          <select id="s-channel" name="channelId" className={input}>
+            {channels.map((c, i) => <option key={c.id} value={i === 0 ? "" : c.id}>{c.name}{i === 0 ? " (เพจหลัก)" : ""}</option>)}
+          </select>
+        </label>
+      )}
       <button type="submit" disabled={pending} className={cx(btn.base, btn.primary)}>
         <Plus className="size-4" /> {pending ? "กำลังเพิ่ม…" : "เพิ่ม"}
       </button>

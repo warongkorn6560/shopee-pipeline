@@ -1,5 +1,6 @@
 import "server-only";
 import { get, put } from "@vercel/blob";
+import * as channels from "./channels";
 import * as gh from "./github";
 
 // One-click social connections. The OAuth dance runs here; the tokens the
@@ -7,6 +8,7 @@ import * as gh from "./github";
 // INSTAGRAM_ACCESS_TOKEN, TIKTOK_REFRESH_TOKEN). Secrets are write-only, so the
 // tokens that must be refreshed later (Instagram, TikTok) are also kept in the
 // private Blob doc data/social.json, together with what to show in the UI.
+// Facebook pages are channels (lib/channels.ts): one sign-in can add many pages.
 
 export type Provider = "facebook" | "instagram" | "tiktok";
 export const PROVIDERS: Provider[] = ["facebook", "instagram", "tiktok"];
@@ -165,7 +167,7 @@ export async function completeConnect(p: Provider, code: string, origin: string)
     }
     if (!list.length) throw new Error("ไม่พบเพจ — ตอนอนุญาตต้องเลือกเพจอย่างน้อยหนึ่งเพจ");
     if (list.length === 1) {
-      await savePage(doc, list[0]);
+      await channels.addFacebookPages(list);
       return { done: true, name: list[0].name };
     }
     await writeDoc({ ...doc, pending: { pages: list, until: Date.now() + 15 * 60_000 } });
@@ -218,26 +220,19 @@ export async function completeConnect(p: Provider, code: string, origin: string)
   return { done: true, name };
 }
 
-async function savePage(doc: SocialDoc, page: PendingPage) {
-  await gh.setSecret("FACEBOOK_PAGE_ID", page.id);
-  await gh.setSecret("FACEBOOK_PAGE_TOKEN", page.token);
-  doc.accounts.facebook = { id: page.id, name: page.name, connectedAt: new Date().toISOString() };
-  delete doc.pending;
-  await writeDoc(doc);
-}
-
 export async function pendingPages(): Promise<{ id: string; name: string }[]> {
   const doc = await readDoc();
   if (!doc.pending || doc.pending.until < Date.now()) return [];
   return doc.pending.pages.map(({ id, name }) => ({ id, name }));
 }
 
-export async function pickPage(id: string): Promise<string> {
+/** Connect the ticked pages from the last Facebook sign-in; each becomes a channel. */
+export async function pickPages(ids: string[]): Promise<string[]> {
   const doc = await readDoc();
-  const page = doc.pending && doc.pending.until > Date.now() ? doc.pending.pages.find((x) => x.id === id) : undefined;
-  if (!page) throw new Error("หมดเวลาเลือกเพจแล้ว — กดเชื่อมใหม่อีกครั้ง");
-  await savePage(doc, page);
-  return page.name;
+  const pages = doc.pending && doc.pending.until > Date.now() ? doc.pending.pages.filter((x) => ids.includes(x.id)) : [];
+  if (!pages.length) throw new Error(doc.pending ? "เลือกอย่างน้อยหนึ่งเพจ" : "หมดเวลาเลือกเพจแล้ว — กดเชื่อมใหม่อีกครั้ง");
+  await channels.addFacebookPages(pages);
+  return pages.map((p) => p.name);
 }
 
 const SECRET_NAMES: Record<Provider, string[]> = {
@@ -247,6 +242,7 @@ const SECRET_NAMES: Record<Provider, string[]> = {
 };
 
 export async function disconnect(p: Provider): Promise<void> {
+  if (p === "facebook") return channels.removeAllFacebook();
   for (const name of SECRET_NAMES[p]) await gh.deleteSecret(name);
   const doc = await readDoc();
   delete doc.accounts[p];

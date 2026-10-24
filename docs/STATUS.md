@@ -60,9 +60,19 @@ Private Vercel Blob store `pipeline-data` (sin1), connected to the project:
   issued by `/api/pipeline/upload-url`; played back through `/api/videos/<id>`
   (session check → presigned GET). Files older than 30 days are deleted.
 
-Pipeline ↔ dashboard API: `POST /api/pipeline/{claim,update,stories,upload-url,videos,import}`
-with `Authorization: Bearer PIPELINE_API_KEY` (client: `pipeline/hub.py`).
-`/api/pipeline` is excluded from the session proxy and authorizes itself.
+Pipeline ↔ dashboard API: `POST /api/pipeline/{claim,update,stories,upload-url,videos,import,channel-token}`
+and `GET|POST /api/pipeline/channels`, with `Authorization: Bearer PIPELINE_API_KEY`
+(client: `pipeline/hub.py`). `/api/pipeline` is excluded from the session proxy and authorizes itself.
+
+Channels (`data/channels.json`, `dashboard/lib/channels.ts`): one per Facebook page,
+each with its own `theme`, `seriesName`, `niche`, `publishMode`, `enabled`. Settings →
+"เพจ & โซเชียล" → เชื่อมเพจ Facebook adds every ticked page in one sign-in (re-connecting
+refreshes tokens and keeps settings). Page tokens are AES-GCM sealed with `CHANNEL_KEY`
+(Vercel env; falls back to SESSION_SECRET) and only leave via `channel-token`.
+Stories may carry `channelId`; unassigned stories belong to the primary channel
+(first enabled). `claim {flow:"story", channelId}` only returns that channel's topics;
+without `channelId` it acts for the primary. The primary page is still mirrored to the
+`FACEBOOK_PAGE_ID` / `FACEBOOK_PAGE_TOKEN` secrets for older runs.
 
 Statuses — products: New → Ready → Producing → Posted / Failed / Hold.
 Stories: Ready → Producing → Done / Posted / Failed / Hold. Items stuck in
@@ -102,7 +112,7 @@ TELEGRAM_CHAT_ID, PIPELINE_API_KEY; optional ANTHROPIC_API_KEY (Claude) and soci
 
 ## Still needs the user (all optional)
 
-1. Facebook Page connect for Flow B auto mode (`python -m pipeline.facebook auth`).
+1. Click "เชื่อมเพจ Facebook" in Settings → เพจ & โซเชียล (App secret already saved).
 2. Instagram token expired 2026-08-19; TikTok needs OAuth + app audit for public posts.
 3. Azure portal check if a card was ever attached.
 4. Flow B deliberately uses no AI images (archival photos or cards only).

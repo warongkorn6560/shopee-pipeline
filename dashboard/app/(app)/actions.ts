@@ -7,6 +7,7 @@ import { requireSession } from "@/lib/dal";
 import { VARIABLES, WORKFLOW_FILES } from "@/lib/flows";
 import * as gh from "@/lib/github";
 import { fillImages, parseAffiliateCsv, productImage } from "@/lib/shopee";
+import * as channels from "@/lib/channels";
 import * as social from "@/lib/social";
 import * as store from "@/lib/store";
 import { SESSION_COOKIE } from "@/lib/session";
@@ -188,11 +189,12 @@ export async function addStory(_: ActionResult | null, form: FormData): Promise<
   await requireSession();
   const topic = String(form.get("topic") ?? "").trim();
   const angle = String(form.get("angle") ?? "").trim();
+  const channelId = String(form.get("channelId") ?? "") || undefined;
   if (!topic || topic.length > 140) return { ok: false, message: "กรอกหัวข้อ (ไม่เกิน 140 ตัวอักษร)" };
   try {
     await store.mutate("stories", (items) => {
       items.push({
-        id: store.newId(), topic, angle: angle.slice(0, 300), status: "Ready", source: "manual",
+        id: store.newId(), topic, angle: angle.slice(0, 300), status: "Ready", source: "manual", channelId,
         createdAt: store.now(), updatedAt: store.now(),
       });
     });
@@ -296,15 +298,52 @@ export async function disconnectSocial(provider: social.Provider): Promise<Actio
   return { ok: true, message: `ยกเลิกการเชื่อม ${SOCIAL_LABEL[provider]} แล้ว` };
 }
 
-export async function pickFacebookPage(id: string): Promise<ActionResult> {
+export async function pickFacebookPages(ids: string[]): Promise<ActionResult> {
   await requireSession();
-  let name: string;
+  let names: string[];
   try {
-    name = await social.pickPage(id);
+    names = await social.pickPages(ids.map(String));
   } catch (e) {
     return fail(e, "บันทึกเพจไม่สำเร็จ");
   }
-  redirect(`/settings?connected=facebook&name=${encodeURIComponent(name)}#social`);
+  redirect(`/settings?connected=facebook&name=${encodeURIComponent(names.join(", "))}#channels`);
+}
+
+// ---------------------------------------------------------------------------
+// Channels (one per Facebook page)
+// ---------------------------------------------------------------------------
+const THEMES = VARIABLES.find((v) => v.name === "STORY_THEME")!.options!.map((o) => o.value);
+
+export async function saveChannel(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  await requireSession();
+  const id = String(form.get("id") ?? "");
+  const theme = String(form.get("theme") ?? "");
+  const publishMode = form.get("publishMode") === "auto" ? "auto" : "review";
+  if (!THEMES.includes(theme)) return { ok: false, message: "ธีมไม่ถูกต้อง" };
+  let name: string;
+  try {
+    name = await channels.updateChannel(id, {
+      theme, publishMode, enabled: form.get("enabled") === "on",
+      seriesName: String(form.get("seriesName") ?? "").trim().slice(0, 60),
+      niche: String(form.get("niche") ?? "").trim().slice(0, 300),
+    });
+  } catch (e) {
+    return fail(e, "บันทึกไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: `บันทึกการตั้งค่าเพจ ${name} แล้ว` };
+}
+
+export async function removeChannel(id: string): Promise<ActionResult> {
+  await requireSession();
+  let name: string;
+  try {
+    name = await channels.removeChannel(id);
+  } catch (e) {
+    return fail(e, "นำเพจออกไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: `นำเพจ ${name} ออกแล้ว` };
 }
 
 export async function saveMetaSecret(_: ActionResult | null, form: FormData): Promise<ActionResult> {

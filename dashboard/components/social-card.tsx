@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Link2, Unlink } from "lucide-react";
-import { disconnectSocial, pickFacebookPage, saveMetaSecret, saveTiktokApp } from "@/app/(app)/actions";
+import { disconnectSocial, pickFacebookPages, saveMetaSecret, saveTiktokApp } from "@/app/(app)/actions";
 import type { Provider } from "@/lib/social";
 import { useToast } from "./toast";
 import { btn, cx } from "./ui";
@@ -51,7 +51,7 @@ export function ConnectResult() {
     toast(ok
       ? { ok: true, message: `เชื่อม ${NAMES[ok] ?? ok} สำเร็จ${params.get("name") ? ` — ${params.get("name")}` : ""}` }
       : { ok: false, message: err! });
-    router.replace("/settings#social", { scroll: false });
+    router.replace(`/settings#${ok === "facebook" || !ok ? "channels" : "social"}`, { scroll: false });
   }, [params, router, toast]);
   return null;
 }
@@ -104,30 +104,42 @@ export function MetaSecretForm({ appId, saved }: { appId: string; saved: boolean
   );
 }
 
-export function PagePicker({ pages }: { pages: { id: string; name: string }[] }) {
+export function PagePicker({ pages, connected }: { pages: { id: string; name: string }[]; connected: string[] }) {
   const toast = useToast();
   const [pending, start] = useTransition();
+  const [picked, setPicked] = useState<string[]>(() => {
+    const already = pages.filter((p) => connected.includes(p.id)).map((p) => p.id);
+    return already.length ? already : pages.map((p) => p.id);
+  });
+  const toggle = (id: string) => setPicked((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   return (
-    <ul className="divide-y divide-line">
-      {pages.map((p) => (
-        <li key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
-          <div>
-            <div className="text-sm font-medium text-ink">{p.name}</div>
-            <div className="font-mono text-xs text-ink-3">{p.id}</div>
-          </div>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => start(async () => {
-              const r = await pickFacebookPage(p.id);
-              if (r && !r.ok) toast(r);
-            })}
-            className={cx(btn.base, btn.primary)}
-          >
-            ใช้เพจนี้
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div>
+      <ul className="divide-y divide-line">
+        {pages.map((p) => (
+          <li key={p.id}>
+            <label className="flex cursor-pointer items-center gap-3 px-5 py-3 hover:bg-surface-2">
+              <input type="checkbox" checked={picked.includes(p.id)} onChange={() => toggle(p.id)} className="size-4 accent-ink" />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-ink">{p.name}</div>
+                <div className="font-mono text-xs text-ink-3">{p.id}{connected.includes(p.id) && " · เชื่อมอยู่แล้ว (จะต่ออายุ token ให้)"}</div>
+              </div>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="px-5 pt-3 pb-5">
+        <button
+          type="button"
+          disabled={pending || !picked.length}
+          onClick={() => start(async () => {
+            const r = await pickFacebookPages(picked);
+            if (r && !r.ok) toast(r);
+          })}
+          className={cx(btn.base, btn.primary)}
+        >
+          {pending ? "กำลังเชื่อม…" : `เชื่อม ${picked.length} เพจ`}
+        </button>
+      </div>
+    </div>
   );
 }

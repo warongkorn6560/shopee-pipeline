@@ -7,8 +7,9 @@ import {
   AddProductForm, AddStoryForm, DeleteButton, ImportCsvForm, QuickStory, StatusButtons,
 } from "@/components/queue-controls";
 import { Card, CardHeader, InlineError, PageHeader, Pill, Skeleton, cx, type Tone } from "@/components/ui";
+import { channels } from "@/lib/channels";
 import { requireSession } from "@/lib/dal";
-import { getProducts, getStories } from "@/lib/data";
+import { getProducts, getStories, settle } from "@/lib/data";
 import { relative } from "@/lib/format";
 import { githubConfigured } from "@/lib/github";
 import { storeConfigured, type Product, type Story } from "@/lib/store";
@@ -164,19 +165,26 @@ async function Stories({ status }: { status: string }) {
   const res = await getStories();
   if (!res.ok) return <InlineError title="โหลดหัวข้อไม่สำเร็จ" detail={res.error} />;
   const all = res.value;
-  const nextId = all.find((s) => s.status === "Ready")?.id;
+  const ch = storeConfigured() ? await settle(channels()) : null;
+  const { channels: pages, primaryId } = ch?.ok ? ch.value : { channels: [], primaryId: "" };
+  const live = pages.filter((c) => c.enabled);
+  const ordered = [...live.filter((c) => c.id === primaryId), ...live.filter((c) => c.id !== primaryId)];
+  const owner = (s: Story) => s.channelId || primaryId;
+  // The next topic each page will make.
+  const nextIds = new Set([...new Set(all.map(owner))].map((o) => all.find((s) => s.status === "Ready" && owner(s) === o)?.id));
+  const pageName = (s: Story) => (pages.length > 1 ? pages.find((c) => c.id === owner(s))?.name : undefined);
   const rows = status === "all" ? all : all.filter((s) => s.status === status);
   const canRun = githubConfigured();
   return (
     <div className="space-y-5">
       <Card>
         <CardHeader eyebrow="ใส่เอง" title="เพิ่มหัวข้อ" />
-        <div className="px-5 pt-4 pb-5"><AddStoryForm /></div>
+        <div className="px-5 pt-4 pb-5"><AddStoryForm channels={ordered.map(({ id, name }) => ({ id, name }))} /></div>
       </Card>
       <Card>
         <CardHeader eyebrow={`${all.length} หัวข้อ`} title="หัวข้อเรื่องเล่า" action={<Filters base="/queue?tab=stories" counts={countBy(all)} current={status} />} />
         <ul className="mt-3 divide-y divide-line">
-          {[...rows].reverse().map((s) => <StoryRow key={s.id} s={s} next={s.id === nextId} canRun={canRun} />)}
+          {[...rows].reverse().map((s) => <StoryRow key={s.id} s={s} next={nextIds.has(s.id)} canRun={canRun} page={pageName(s)} />)}
           {rows.length === 0 && (
             <li className="px-5 py-8 text-center text-sm text-ink-3">
               ไม่มีรายการในสถานะนี้{status === "Ready" && " — ถ้าเปิด “AI คิดหัวข้อเอง” ไว้ ระบบจะเสนอหัวข้อใหม่ให้ทุกวัน"}
@@ -189,7 +197,7 @@ async function Stories({ status }: { status: string }) {
   );
 }
 
-function StoryRow({ s, next, canRun }: { s: Story; next: boolean; canRun: boolean }) {
+function StoryRow({ s, next, canRun, page }: { s: Story; next: boolean; canRun: boolean; page?: string }) {
   return (
     <li className="flex flex-wrap items-center gap-3 px-5 py-3 sm:flex-nowrap">
       <div className="min-w-0 flex-1">
@@ -197,6 +205,7 @@ function StoryRow({ s, next, canRun }: { s: Story; next: boolean; canRun: boolea
           {next && <Pill tone="live" className="!py-0 text-[10px]">คิวถัดไป</Pill>}
           <span className="text-sm font-medium text-ink">{s.topic}</span>
           {s.source === "auto" && <span className="rounded bg-surface-2 px-1.5 text-[10px] text-ink-3">AI เสนอ</span>}
+          {page && <span className="rounded bg-story-soft px-1.5 text-[10px] text-story">{page}</span>}
         </div>
         <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-3">
           {s.angle && <span className="truncate">{s.angle}</span>}

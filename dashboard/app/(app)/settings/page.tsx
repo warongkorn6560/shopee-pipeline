@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 import { Suspense, type ReactNode } from "react";
-import { ArrowUpRight, KeyRound } from "lucide-react";
+import { ArrowUpRight, KeyRound, Link2, Plus } from "lucide-react";
 import { RunButton, ScheduleToggle } from "@/components/controls";
-import { Card, CardHeader, FlowTag, InlineError, PageHeader, Pill, Skeleton, StateIcon, Tally, cx } from "@/components/ui";
+import { Card, CardHeader, FlowTag, InlineError, PageHeader, Pill, Skeleton, StateIcon, Tally, btn, cx } from "@/components/ui";
 import { ClaudeKeyForm, VoiceSample } from "@/components/ai-card";
+import { ChannelEditor } from "@/components/channel-editor";
+import { SettingsTabs } from "@/components/settings-tabs";
 import { ConnectButtons, ConnectResult, MetaSecretForm, TiktokAppForm } from "@/components/social-card";
 import { VarField } from "@/components/var-field";
+import { channels } from "@/lib/channels";
 import { requireSession } from "@/lib/dal";
 import { effective, getSecrets, getVariables, getWorkflows, settle } from "@/lib/data";
-import { FLOWS, SECRETS, VARIABLES, type FlowId } from "@/lib/flows";
+import { FLOWS, SECRETS, THEME_SERIES, VARIABLES, type FlowId } from "@/lib/flows";
 import { REPO, githubConfigured } from "@/lib/github";
 import { META_APP_ID, connections, type Provider } from "@/lib/social";
 import { storeConfigured } from "@/lib/store";
@@ -16,31 +19,38 @@ import { storeConfigured } from "@/lib/store";
 export const metadata: Metadata = { title: "ตั้งค่า" };
 
 export default function SettingsPage() {
+  const wait = (h: string) => <Skeleton className={cx(h, "rounded-2xl")} />;
+  const tabs = [
+    { id: "overview", label: "ภาพรวม", content: <Suspense fallback={wait("h-64")}><Connections /></Suspense> },
+    {
+      id: "channels", label: "เพจ & โซเชียล",
+      content: (
+        <>
+          <Suspense><ConnectResult /></Suspense>
+          <Suspense fallback={wait("h-72")}><Channels /></Suspense>
+          <Suspense fallback={wait("h-64")}><Social /></Suspense>
+        </>
+      ),
+    },
+    ...FLOWS.map((f) => ({
+      id: f.id === "shopee" ? "flow-a" : "flow-b", label: f.id === "shopee" ? "Flow A · Shopee" : "Flow B · คลิปเล่าเรื่อง",
+      content: <Suspense fallback={wait("h-96")}><FlowSettings flowId={f.id} /></Suspense>,
+    })),
+    { id: "ai", label: "AI & เสียง", content: <Suspense fallback={wait("h-72")}><AiAndVoice /></Suspense> },
+    {
+      id: "system", label: "ตารางเวลา & กุญแจ",
+      content: (
+        <>
+          <Suspense fallback={wait("h-64")}><Workflows /></Suspense>
+          <Suspense fallback={wait("h-96")}><Secrets /></Suspense>
+        </>
+      ),
+    },
+  ];
   return (
     <div className="space-y-6">
-      <PageHeader title="ตั้งค่า" subtitle="ค่าที่แก้ที่นี่จะถูกเก็บเป็น GitHub Actions Variables และมีผลตั้งแต่รันครั้งถัดไป" />
-      <Suspense fallback={<Skeleton className="h-40 rounded-2xl" />}>
-        <Connections />
-      </Suspense>
-      <Suspense fallback={<Skeleton className="h-72 rounded-2xl" />}>
-        <AiAndVoice />
-      </Suspense>
-      <div className="grid gap-5 xl:grid-cols-2">
-        {FLOWS.map((f) => (
-          <Suspense key={f.id} fallback={<Skeleton className="h-96 rounded-2xl" />}>
-            <FlowSettings flowId={f.id} />
-          </Suspense>
-        ))}
-      </div>
-      <Suspense fallback={<Skeleton className="h-64 rounded-2xl" />}>
-        <Workflows />
-      </Suspense>
-      <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
-        <Secrets />
-      </Suspense>
-      <Suspense fallback={<Skeleton className="h-80 rounded-2xl" />}>
-        <Social />
-      </Suspense>
+      <PageHeader title="ตั้งค่า" subtitle="ค่าที่แก้ที่นี่มีผลตั้งแต่รันครั้งถัดไป" />
+      <SettingsTabs tabs={tabs} />
     </div>
   );
 }
@@ -167,6 +177,11 @@ async function FlowSettings({ flowId }: { flowId: FlowId }) {
     <Card>
       <CardHeader eyebrow={<FlowTag flow={flowId} />} title={flow.name} />
       {!gh && <p className="mx-5 mt-3 rounded-xl bg-surface-2 px-3.5 py-2.5 text-xs text-ink-2">แสดงค่าเริ่มต้น — เชื่อม GitHub เพื่อแก้ไข</p>}
+      {flowId === "story" && (
+        <p className="mx-5 mt-3 rounded-xl bg-surface-2 px-3.5 py-2.5 text-xs text-ink-2">
+          ค่าในหน้านี้เป็นค่ากลาง · แต่ละเพจตั้งธีม ชื่อซีรีส์ และโหมดโพสต์ของตัวเองได้ในแท็บ <a href="#channels" className="font-medium text-ink underline">เพจ &amp; โซเชียล</a>
+        </p>
+      )}
       <div className="mt-2 divide-y divide-line">
         {defs.map((d) => (
           <VarField key={`${d.name}:${effective(values, d.name)}`} def={d} current={effective(values, d.name)} isSet={Boolean(values?.[d.name])} disabled={!gh} />
@@ -271,7 +286,6 @@ async function Secrets() {
 }
 
 const SOCIAL: { id: Provider; name: string; flows: FlowId[]; note: string }[] = [
-  { id: "facebook", name: "เพจ Facebook", flows: ["story"], note: "โพสต์ Reels ลงเพจ · token เพจไม่หมดอายุ" },
   { id: "instagram", name: "Instagram", flows: ["shopee", "story"], note: "บัญชี Professional · ระบบต่ออายุ token 60 วันให้เองทุกวัน" },
   { id: "tiktok", name: "TikTok", flows: ["shopee", "story"], note: "แอปที่ยังไม่ผ่าน audit ของ TikTok โพสต์ได้แบบส่วนตัว (เห็นคนเดียว) เท่านั้น" },
 ];
@@ -286,11 +300,9 @@ async function Social() {
   const modes = FLOWS.map((f) => ({ flow: f, auto: effective(values, f.publishVar) === "auto" }));
   return (
     <Card>
-      <div id="social" className="scroll-mt-24" />
-      <Suspense><ConnectResult /></Suspense>
       <CardHeader
         eyebrow="กดเชื่อมครั้งเดียว ระบบเก็บ token ลง GitHub Secrets ให้เอง"
-        title="บัญชีโซเชียล & โพสต์อัตโนมัติ"
+        title="Instagram & TikTok"
         action={
           <span className="flex flex-wrap gap-1.5">
             {modes.map(({ flow, auto }) => (
@@ -320,15 +332,61 @@ async function Social() {
                 </div>
                 <ConnectButtons provider={s.id} connected={Boolean(acc)} ready={Boolean(ready)} />
               </div>
-              {s.id === "facebook" && !acc && <MetaSecretForm appId={META_APP_ID} saved={Boolean(view?.metaApp)} />}
               {s.id === "tiktok" && !acc && <TiktokAppForm saved={Boolean(view?.tiktokApp)} />}
             </li>
           );
         })}
       </ul>
       <p className="px-5 pt-1 pb-5 text-xs leading-relaxed text-ink-3">
-        เปิดโพสต์อัตโนมัติได้ที่ &ldquo;โหมดการโพสต์&rdquo; ของแต่ละ flow ด้านบน · ตอนโหมด auto ระบบโพสต์ไปทุกบัญชีที่เชื่อมไว้ และยังส่ง Telegram + หน้ารีวิวเหมือนเดิม
+        เปิดโพสต์อัตโนมัติได้ที่ &ldquo;โหมดการโพสต์&rdquo; ในแท็บ Flow A / Flow B · ตอนโหมด auto ระบบโพสต์ไปทุกบัญชีที่เชื่อมไว้ และยังส่ง Telegram + หน้ารีวิวเหมือนเดิม
         {" "}· Shopee Video ไม่มี API ต้องอัปโหลดเองเสมอ
+      </p>
+    </Card>
+  );
+}
+
+async function Channels() {
+  await requireSession();
+  if (!storeConfigured()) return <InlineError title="ยังไม่ได้เชื่อมคลังข้อมูล" detail="ต้องมี BLOB_READ_WRITE_TOKEN ก่อน" />;
+  const [data, conn] = await Promise.all([settle(channels()), settle(connections())]);
+  if (!data.ok) return <InlineError title="อ่านรายชื่อเพจไม่สำเร็จ" detail={data.error} />;
+  const list = data.value.channels;
+  const appReady = conn.ok && conn.value.metaApp;
+  const themes = VARIABLES.find((v) => v.name === "STORY_THEME")!.options!;
+  return (
+    <Card>
+      <div id="facebook" className="scroll-mt-24" />
+      <CardHeader
+        eyebrow={<span className="inline-flex items-center gap-2"><FlowTag flow="story" /> โพสต์ Reels · token เพจไม่หมดอายุ</span>}
+        title={list.length ? `เพจ Facebook · ${list.length} เพจ` : "เพจ Facebook"}
+        action={
+          <a
+            href={appReady ? "/api/connect/facebook" : undefined}
+            aria-disabled={!appReady}
+            className={cx(btn.base, list.length ? btn.secondary : btn.primary, !appReady && "pointer-events-none opacity-50")}
+          >
+            {list.length ? <><Plus className="size-4" /> เพิ่มเพจ / ต่ออายุ</> : <><Link2 className="size-4" /> เชื่อมเพจ Facebook</>}
+          </a>
+        }
+      />
+      {!list.length && (
+        <ol className="list-decimal space-y-1.5 px-5 pt-3 pl-10 text-sm text-ink-2 marker:text-ink-3">
+          <li className={cx(appReady && "text-ink-3 line-through")}>ใส่ App secret ด้านล่าง (ครั้งเดียว)</li>
+          <li>กด <b className="text-ink">เชื่อมเพจ Facebook</b> → ล็อกอิน Facebook → ติ๊กเพจที่ต้องการ → อนุญาต</li>
+          <li>กลับมาที่นี่ ตั้งว่าแต่ละเพจเล่าเรื่องอะไร — เพิ่มเพจใหม่ได้ตลอด แต่ละเพจมีธีมของตัวเอง</li>
+        </ol>
+      )}
+      {!appReady && <div className="px-5 pt-3"><MetaSecretForm appId={META_APP_ID} saved={false} /></div>}
+      {list.length > 0 && (
+        <div className="mt-3 divide-y divide-line border-t border-line">
+          {list.map((c) => (
+            <ChannelEditor key={`${c.id}:${c.updatedAt}`} channel={c} themes={themes} primary={c.id === data.value.primaryId}
+              seriesDefault={THEME_SERIES[c.theme] ?? "ค่าของธีม"} />
+          ))}
+        </div>
+      )}
+      <p className="border-t border-line px-5 py-3 text-xs leading-relaxed text-ink-3">
+        เพจหลัก (เพจแรกที่เปิดใช้) รับหัวข้อที่ไม่ได้ระบุเพจ · หัวข้อในคิวเลือกเพจได้ตอนเพิ่ม · token ทุกเพจเข้ารหัสเก็บในคลังข้อมูลส่วนตัว
       </p>
     </Card>
   );
