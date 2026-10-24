@@ -19,7 +19,7 @@ export default function OverviewPage() {
         <AttentionList />
       </Suspense>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid [&>*]:min-w-0 gap-5 xl:grid-cols-2">
         {FLOWS.map((f) => (
           <Suspense key={f.id} fallback={<FlowPanelSkeleton flowId={f.id} />}>
             <FlowPanel flowId={f.id} />
@@ -27,7 +27,7 @@ export default function OverviewPage() {
         ))}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
+      <div className="grid [&>*]:min-w-0 gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
         <Suspense fallback={<Card className="h-80"><Skeleton className="m-5 h-64" /></Card>}>
           <RecentRuns />
         </Suspense>

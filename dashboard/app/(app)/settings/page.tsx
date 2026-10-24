@@ -71,7 +71,7 @@ async function Connections() {
     { label: "Telegram", env: "TELEGRAM_BOT_TOKEN", ok: Boolean(process.env.TELEGRAM_BOT_TOKEN), use: "สถานะบอท" },
   ];
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+    <div className="grid [&>*]:min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <Card>
         <CardHeader eyebrow="Vercel Environment" title="การเชื่อมต่อของ dashboard" />
         <ul className="mt-3 divide-y divide-line">
@@ -134,7 +134,7 @@ async function AiAndVoice() {
   const modelDef = VARIABLES.find((v) => v.name === "CLAUDE_MODEL")!;
   const budgetDef = VARIABLES.find((v) => v.name === "CLAUDE_MONTHLY_BUDGET")!;
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
+    <div className="grid [&>*]:min-w-0 gap-5 lg:grid-cols-2">
       <Card>
         <CardHeader
           eyebrow="สมองของทั้งสอง flow"

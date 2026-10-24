@@ -36,7 +36,7 @@ export default function ServicesPage() {
     <div className="space-y-6">
       <PageHeader title="บริการ & ค่าใช้จ่าย" subtitle="ทุกบริการที่ระบบแตะ จ่ายอยู่หรือไม่ และตรวจล่าสุดเมื่อไร" />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid [&>*]:min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Summary tone="warn" big={String(paid.length)} label="บริการที่จ่ายเงินอยู่" note={paid.map((s) => s.name).join(" · ")} />
         <Summary tone="bad" big={String(unknown.length)} label="ต้องเข้าไปตรวจเอง" note={unknown.map((s) => s.name).join(" · ") || "—"} />
         <Summary tone="ok" big="$0" label="ค่าใช้จ่ายเพิ่มต่อคลิป" note="ทั้งสอง flow ใช้ของที่จ่ายแล้วหรือของฟรี" />
@@ -90,7 +90,7 @@ async function ServiceList() {
   return (
     <ul className="mt-3 divide-y divide-line">
       {SERVICES.map((s) => (
-        <li key={s.name} className="grid gap-x-4 gap-y-1.5 px-5 py-4 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_auto]">
+        <li key={s.name} className="grid [&>*]:min-w-0 gap-x-4 gap-y-1.5 px-5 py-4 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_auto]">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium text-ink">{s.name}</span>

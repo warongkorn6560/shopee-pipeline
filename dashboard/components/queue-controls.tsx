@@ -128,7 +128,7 @@ export function AddProductForm() {
   const ref = useRef<HTMLFormElement>(null);
   useFormToast(state, ref);
   return (
-    <form ref={ref} action={action} className="grid gap-3 sm:grid-cols-2">
+    <form ref={ref} action={action} className="grid [&>*]:min-w-0 gap-3 sm:grid-cols-2">
       <label className="space-y-1 sm:col-span-2" htmlFor="p-name">
         <span className="text-xs text-ink-2">ชื่อสินค้า *</span>
         <input id="p-name" name="name" required maxLength={200} className={input} placeholder="ของเล่นยางกัดสุนัข ทนพิเศษ" />

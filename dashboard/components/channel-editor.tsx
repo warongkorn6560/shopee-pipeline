@@ -76,7 +76,7 @@ export function ChannelEditor({ channel, themes, primary, seriesDefault, nicheDe
         <Segmented name="theme" options={themes} value={theme} onChange={setTheme} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid [&>*]:min-w-0 gap-3 sm:grid-cols-2">
         <label className="space-y-1.5">
           <span className="text-sm font-medium text-ink">ชื่อซีรีส์ (ป้ายบนคลิป)</span>
           <input name="seriesName" defaultValue={channel.seriesName} maxLength={60} placeholder={`ว่าง = ${seriesDefault}`} className={input} />

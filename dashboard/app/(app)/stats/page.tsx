@@ -98,12 +98,12 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/stats"
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <div className="grid [&>*]:min-w-0 grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Total label="รวมทุกช่องทาง" views={allViews} reactions={allReactions} note={`${rows.length} คลิป`} />
         {totals.map((t, i) => <Total key={t.k} label={PLATFORM_LABEL[t.k]} views={t.views} reactions={t.reactions} color={`var(--viz-${i + 1})`} />)}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid [&>*]:min-w-0 gap-5 xl:grid-cols-2">
         <ChartCard eyebrow="ยอดวิวสะสม · อัปเดตทุกชั่วโมง" title="การเติบโตของยอดวิว" legend={<Legend />}>
           <GrowthChart points={points} />
         </ChartCard>

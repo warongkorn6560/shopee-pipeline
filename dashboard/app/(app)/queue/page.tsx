@@ -101,7 +101,7 @@ async function Products({ status }: { status: string }) {
   const nextId = all.find((p) => p.status === "Ready")?.id;
   const rows = status === "all" ? all : all.filter((p) => p.status === status);
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="grid [&>*]:min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
       <Card>
         <CardHeader eyebrow={`${all.length} รายการ`} title="สินค้า" action={<Filters base="/queue?tab=products" counts={countBy(all)} current={status} />} />
         <ul className="mt-3 divide-y divide-line">

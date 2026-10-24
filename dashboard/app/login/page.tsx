@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "เข้าสู่ระบบ" }
 export default function LoginPage() {
   const ready = authConfigured();
   return (
-    <main className="grid min-h-full place-items-center px-4 py-12">
+    <main className="grid [&>*]:min-w-0 min-h-full place-items-center px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-3">
           <Mark />

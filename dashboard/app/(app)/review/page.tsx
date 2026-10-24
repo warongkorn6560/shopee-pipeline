@@ -76,7 +76,7 @@ async function ReviewContent({ searchParams }: { searchParams: Promise<Record<st
           {tab === "review" ? "ไม่มีคลิปรอตรวจ — คลิปใหม่จะเข้ามาหลังรอบโพสต์ตามเวลาที่ตั้งไว้" : "ไม่มีคลิปในสถานะนี้"}
         </Card>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
+        <div className="grid [&>*]:min-w-0 gap-5 md:grid-cols-2 2xl:grid-cols-3">
           {videos.map((v) => <VideoCard key={v.id} v={v} primaryId={primary} youtube={yt} />)}
         </div>
       )}
