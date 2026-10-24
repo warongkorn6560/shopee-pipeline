@@ -17,7 +17,7 @@ import json
 import random
 import traceback
 
-from .. import hub, llm, voiceover
+from .. import hub, llm, stats, voiceover
 from ..config import (
     STORY_CHANNEL_ID,
     COST_CAP_USD, OUTPUT_DIR, PUBLISH_MODE, STORY_AUTO_TOPIC, STORY_IMAGE_PRICE_USD,
@@ -72,7 +72,10 @@ def _pick_topic(override: str | None, live: bool) -> topics.Topic | None:
         return t
     if not STORY_AUTO_TOPIC:
         return None
-    topic, angle = writer.propose_topic(previous)
+    best, worst = stats.performance()
+    if best:
+        print(f"  [topics] steering by top performer: {best[0]}")
+    topic, angle = writer.propose_topic(previous, best, worst)
     print(f"  [topics] queue empty → auto topic: {topic}")
     return topics.add_auto(topic, angle)
 

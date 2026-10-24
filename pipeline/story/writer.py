@@ -354,11 +354,27 @@ def research(topic: str, angle: str) -> list[tuple[str, str]]:
     return notes
 
 
-def propose_topic(previous: list[str]) -> tuple[str, str]:
+PERFORMANCE_NOTE = """
+
+What our audience actually watched (views across Facebook, Instagram and YouTube, last 60 days):
+Best:
+{best}
+Weakest:
+{worst}
+Lean toward what the best ones have in common (kind of animal or place, the angle, the type of
+question) and away from what the weakest share, while still picking a new subject."""
+
+
+def propose_topic(previous: list[str], best: list[str] | None = None,
+                  worst: list[str] | None = None) -> tuple[str, str]:
+    prompt = THEME["topic"].format(series=STORY_SERIES_NAME, niche=STORY_NICHE,
+                                   previous="\n".join(f"- {p}" for p in previous[-80:]) or "- (none yet)")
+    if best:
+        prompt += PERFORMANCE_NOTE.format(best="\n".join(f"- {b}" for b in best),
+                                          worst="\n".join(f"- {w}" for w in worst or []) or "- (none)")
     data = generate_json(
         THEME["topic_system"],
-        THEME["topic"].format(series=STORY_SERIES_NAME, niche=STORY_NICHE,
-                            previous="\n".join(f"- {p}" for p in previous[-80:]) or "- (none yet)"),
+        prompt,
         schema=TOPIC_SCHEMA, max_tokens=2000, effort="low", gateway_model="openai/gpt-4.1-mini",
     )
     return data["topic"].strip(), data.get("angle", "").strip()
