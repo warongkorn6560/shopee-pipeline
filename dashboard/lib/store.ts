@@ -59,10 +59,21 @@ export interface Video {
   runUrl?: string;
   published?: Record<string, unknown>;
   cost?: VideoCost;
+  stats?: VideoStats;
   channelId?: string; // story videos: the page it was made for (unset = primary)
   postRequestedAt?: string; // approve → post-video.yml dispatched
   createdAt: string;
   reviewedAt?: string;
+}
+
+/** Views and reactions per platform, refreshed by stats.yml every 6h. */
+export interface VideoStats {
+  facebook?: { plays?: number; likes?: number; comments?: number; shares?: number };
+  instagram?: { views?: number; reach?: number; likes?: number; comments?: number; shares?: number; saved?: number };
+  youtube?: { views?: number; likes?: number; comments?: number };
+  totalViews: number;
+  engagement: number;
+  updatedAt: string;
 }
 
 /** What one video cost to make, as reported by the pipeline. */

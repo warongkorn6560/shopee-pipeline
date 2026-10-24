@@ -167,6 +167,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
       });
     }
 
+    case "videos-list": {
+      // Posted videos with their platform ids, for stats.yml and topic learning.
+      const flow = isFlow(body.flow) ? body.flow : "story";
+      const since = Date.now() - Math.min(Math.max(Number(body.days) || 60, 1), 365) * 86_400_000;
+      const [videos, stories] = await Promise.all([list("videos"), list("stories")]);
+      const topics = new Map(stories.map((s) => [s.id, s.topic]));
+      const hasPost = (v: Video) => v.status === "posted" || Object.values(v.published ?? {}).some(
+        (r) => r && typeof r === "object" && !("error" in r) && !("skipped" in r),
+      );
+      return NextResponse.json({
+        videos: videos
+          .filter((v) => v.flow === flow && Date.parse(v.createdAt) >= since && hasPost(v))
+          .map((v) => ({
+            id: v.id, title: v.title, refId: v.refId, topic: topics.get(v.refId) ?? "", channelId: v.channelId ?? "",
+            published: v.published ?? {}, stats: v.stats ?? null, createdAt: v.createdAt,
+          })),
+      });
+    }
+
+    case "video-stats": {
+      if (typeof body.id !== "string" || !body.stats || typeof body.stats !== "object") return bad("id and stats required");
+      const stats = { ...(body.stats as Record<string, unknown>) } as unknown as Video["stats"];
+      const found = await mutate("videos", (items) => {
+        const v = items.find((x) => x.id === body.id);
+        if (!v) return false;
+        v.stats = { ...stats!, totalViews: Number(stats!.totalViews) || 0, engagement: Number(stats!.engagement) || 0, updatedAt: stats!.updatedAt || now() };
+        return true;
+      });
+      return found ? NextResponse.json({ ok: true }) : bad("not found", 404);
+    }
+
     case "video-posted": {
       if (typeof body.id !== "string") return bad("id required");
       const found = await mutate("videos", (items) => {

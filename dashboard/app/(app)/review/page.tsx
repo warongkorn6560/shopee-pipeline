@@ -6,7 +6,8 @@ import { CopyButton, ReviewActions } from "@/components/review-controls";
 import { Card, FlowTag, InlineError, PageHeader, Pill, Skeleton, cx, type Tone } from "@/components/ui";
 import { requireSession } from "@/lib/dal";
 import { getVideos } from "@/lib/data";
-import { bytes, number, relative, thaiDateTime } from "@/lib/format";
+import { bytes, compact, number, relative, thaiDateTime } from "@/lib/format";
+import { summary } from "@/lib/stats";
 import { primaryChannelId } from "@/lib/channels";
 import { readDoc } from "@/lib/social";
 import { PLATFORMS, explainError, pending } from "@/lib/posting";
@@ -94,6 +95,10 @@ function VideoCard({ v, primaryId, youtube }: { v: Video; primaryId: string; you
           <h2 className="mt-1.5 line-clamp-2 font-display text-[16px] font-semibold leading-snug text-ink">{v.title || "(ไม่มีชื่อ)"}</h2>
           <p className="mt-0.5 text-xs text-ink-3" title={thaiDateTime(v.createdAt)}>
             {relative(v.createdAt)} · {v.size ? bytes(v.size) : ""}
+            {v.stats && (() => {
+              const s = summary(v);
+              return <span className="text-ink-2" title={`อัปเดต ${relative(v.stats.updatedAt)}`}>{" "}· 👁 {compact(s.views)} · ❤ {compact(s.reactions)}</span>;
+            })()}
             {v.cost && (
               <span title={`Claude ${number(v.cost.inputTokens)} token เข้า · ${number(v.cost.outputTokens)} token ออก · เสียง ${number(v.cost.ttsChars)} ตัวอักษร`}>
                 {" "}· Claude ${v.cost.claudeUsd.toFixed(2)}

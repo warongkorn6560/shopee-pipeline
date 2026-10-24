@@ -69,6 +69,11 @@ export function bytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/** 12300 → "12.3K" */
+export function compact(n: number): string {
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+}
+
 export function number(n: number): string {
   return new Intl.NumberFormat("th-TH").format(n);
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Clapperboard, ExternalLink, LayoutDashboard, ListChecks, LogOut, Receipt, SlidersHorizontal } from "lucide-react";
+import { Clapperboard, ExternalLink, LayoutDashboard, ListChecks, LogOut, Receipt, SlidersHorizontal, BarChart3 } from "lucide-react";
 import { logout } from "@/app/(app)/actions";
 import { cx } from "./ui";
 
@@ -10,6 +10,7 @@ const NAV = [
   { href: "/", label: "ภาพรวม", icon: LayoutDashboard },
   { href: "/review", label: "รีวิววิดีโอ", short: "รีวิว", icon: Clapperboard },
   { href: "/queue", label: "คิวงาน", icon: ListChecks },
+  { href: "/stats", label: "สถิติ", icon: BarChart3 },
   { href: "/settings", label: "ตั้งค่า", icon: SlidersHorizontal },
   { href: "/services", label: "บริการ & ค่าใช้จ่าย", short: "บริการ", icon: Receipt },
 ] as const;
