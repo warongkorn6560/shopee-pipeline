@@ -120,7 +120,7 @@ def collect() -> int:
     yt = _youtube(yt_ids, yt_token) if yt_token and yt_ids else {}
     ig_token = ENV.get("INSTAGRAM_ACCESS_TOKEN", "")
 
-    updated = 0
+    batch: list[dict] = []
     for v in videos:
         pub, stats = v.get("published") or {}, {}
         try:
@@ -137,10 +137,11 @@ def collect() -> int:
         if not stats:
             continue
         stats.update(_totals(stats), updatedAt=dt.datetime.now(dt.timezone.utc).isoformat())
-        hub._call("video-stats", {"id": v["id"], "stats": stats})
-        updated += 1
+        batch.append({"id": v["id"], "stats": stats})
         print(f"  {v.get('title', '')[:40]}: {stats['totalViews']} views · eng {stats['engagement']:.1%} · "
               + " ".join(f"{p}={s}" for p, s in stats.items() if isinstance(s, dict)))
+    # one write for the whole run (the dashboard appends each to the video's history)
+    updated = hub._call("video-stats-batch", {"items": batch}).get("updated", 0) if batch else 0
     print(f"  ✓ updated {updated}")
     return 0
 
