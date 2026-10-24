@@ -119,7 +119,7 @@ export async function authUrl(p: Provider, origin: string, state: string): Promi
     const app = igApp()!;
     return `https://www.instagram.com/oauth/authorize?${new URLSearchParams({
       client_id: app.id, redirect_uri, state, response_type: "code",
-      scope: "instagram_business_basic,instagram_business_content_publish",
+      scope: "instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights",
     })}`;
   }
   if (p === "youtube") {
