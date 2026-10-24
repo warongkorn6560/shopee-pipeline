@@ -38,8 +38,8 @@ const MODES: Option[] = [
 const input = "w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-focus";
 
 /** One Facebook page: what it posts about and how. */
-export function ChannelEditor({ channel, themes, primary, seriesDefault, defaultHours }: {
-  channel: PublicChannel; themes: Option[]; primary: boolean; seriesDefault: string; defaultHours: string;
+export function ChannelEditor({ channel, themes, primary, seriesDefault, nicheDefault, defaultHours }: {
+  channel: PublicChannel; themes: Option[]; primary: boolean; seriesDefault: string; nicheDefault: string; defaultHours: string;
 }) {
   const toast = useToast();
   const [state, action, pending] = useActionState(saveChannel, null);
@@ -83,7 +83,7 @@ export function ChannelEditor({ channel, themes, primary, seriesDefault, default
         </label>
         <label className="space-y-1.5">
           <span className="text-sm font-medium text-ink">แนวเนื้อหาเพิ่มเติม</span>
-          <input name="niche" defaultValue={channel.niche} maxLength={300} placeholder="ว่าง = แนวของธีม" className={input} />
+          <input name="niche" defaultValue={channel.niche} maxLength={300} placeholder={`ว่าง = ${nicheDefault}`} className={input} />
         </label>
       </div>
 

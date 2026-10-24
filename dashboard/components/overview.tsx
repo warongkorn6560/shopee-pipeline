@@ -11,7 +11,7 @@ import { bytes, hoursLabel, nextAtHours, nextDailyRun, number, parseHours, relat
 import * as gh from "@/lib/github";
 import { storeConfigured } from "@/lib/store";
 import { attention, runLabel, runTone, stepStatuses } from "@/lib/status";
-import { AutoRefresh, RunButton, ScheduleToggle } from "./controls";
+import { AutoRefresh, BurstButton, RunButton, ScheduleToggle } from "./controls";
 import { Card, CardHeader, FlowTag, InlineError, Pill, Skeleton, StateIcon, Tally, cx, type Tone } from "./ui";
 
 const STEP_ICON: Record<FlowId, Record<StepKey, LucideIcon>> = {
@@ -57,13 +57,26 @@ export async function FlowPanel({ flowId }: { flowId: FlowId }) {
   const modeLabel = VARIABLES.find((v) => v.name === flow.publishVar)?.options?.find((o) => o.value === mode)?.label ?? mode;
   // Posting hours: the workflow runs hourly and only makes clips at these Bangkok hours.
   let hours = primary.hoursVar ? parseHours(effective(ctx.vars, primary.hoursVar)) : [];
+  let livePages = 0;
   if (flow.id === "story" && storeConfigured()) {
     const ch = await settle(channels());
     const live = ch.ok ? ch.value.channels.filter((c) => c.enabled) : [];
+    livePages = live.length;
     if (live.length) hours = [...new Set(live.flatMap((c) => (c.postHours.length ? c.postHours : hours)))].sort((a, b) => a - b);
   }
   const next = enabled ? (primary.hoursVar ? nextAtHours(hours) : nextDailyRun(primary.cron)) : null;
-  const isLive = latest ? latest.status !== "completed" : false;
+  // A burst (or any multi-clip run) still going: show clips done / total.
+  const running = runsRes?.ok ? runsRes.value.find((r) => r.status === "in_progress") : undefined;
+  let burst: { total: number; done: number; failed: number } | null = null;
+  if (flow.id === "story" && running) {
+    try {
+      const p = await gh.jobProgress(running.id, "make-story");
+      if (p.total > 1) burst = p;
+    } catch {
+      burst = null;
+    }
+  }
+  const isLive = Boolean(running) || (latest ? latest.status !== "completed" : false);
   const stateTone: Tone = isLive ? "live" : !ctx.github ? "idle" : !wf ? "warn" : enabled ? "ok" : "idle";
   const stateLabel = isLive ? "ON AIR" : !ctx.github ? "ไม่ได้เชื่อม GitHub" : !wf ? "ยังไม่มี workflow" : enabled ? "รันตามเวลา" : "หยุดอยู่";
   const visualVar = flow.id === "shopee" ? "รูปสินค้าจริง" : effective(ctx.vars, "STORY_IMAGE_PROVIDER");
@@ -116,6 +129,16 @@ export async function FlowPanel({ flowId }: { flowId: FlowId }) {
             {latest ? `${relative(latest.created_at)} · ${duration(latest)}` : "—"}
             {extra.failedStep && <span className="text-bad"> · พังที่ “{extra.failedStep}”</span>}
           </dd>
+          {burst && (
+            <dd className="mt-1.5 text-xs font-medium text-live">
+              กำลังรัว {burst.done}/{burst.total}
+              {burst.failed > 0 && <span className="text-bad"> · พลาด {burst.failed}</span>}
+              {" "}· เหลือ ~{Math.max(1, Math.round(((burst.total - burst.done) * 17) / 60))} ชม.
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                <div className="h-full rounded-full bg-live" style={{ width: `${Math.max((burst.done / burst.total) * 100, 2)}%` }} />
+              </div>
+            </dd>
+          )}
         </div>
         <div className="px-4 py-3">
           <dt className="eyebrow">โหมด</dt>
@@ -140,6 +163,7 @@ export async function FlowPanel({ flowId }: { flowId: FlowId }) {
                 mode === "auto" ? "โหมดโพสต์อัตโนมัติ — วิดีโอจะถูกโพสต์สาธารณะทันที" : undefined
               }
             />
+            {flow.id === "story" && <BurstButton autoMode={mode === "auto"} pages={livePages} />}
             <ScheduleToggle file={primary.file} enabled={enabled} label={flow.short} />
           </>
         ) : (

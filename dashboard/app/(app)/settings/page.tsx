@@ -356,6 +356,10 @@ async function Channels() {
   const [data, conn, vars] = await Promise.all([
     settle(channels()), settle(connections()), githubConfigured() ? getVariables() : Promise.resolve(null),
   ]);
+  const varValues = vars?.ok ? vars.value : null;
+  // An empty channel field falls back to the GitHub variable, then to the theme's default.
+  const seriesFor = (theme: string) => varValues?.STORY_SERIES_NAME?.value || THEME_SERIES[theme] || "ค่าของธีม";
+  const nicheDefault = (varValues?.STORY_NICHE?.value || "แนวของธีม").slice(0, 60);
   const defaultHours = parseHours(effective(vars?.ok ? vars.value : null, "STORY_POST_HOURS")).map(hourText).join(", ") || "พักอยู่";
   if (!data.ok) return <InlineError title="อ่านรายชื่อเพจไม่สำเร็จ" detail={data.error} />;
   const list = data.value.channels;
@@ -389,7 +393,7 @@ async function Channels() {
         <div className="mt-3 divide-y divide-line border-t border-line">
           {list.map((c) => (
             <ChannelEditor key={`${c.id}:${c.updatedAt}`} channel={c} themes={themes} primary={c.id === data.value.primaryId}
-              seriesDefault={THEME_SERIES[c.theme] ?? "ค่าของธีม"} defaultHours={defaultHours} />
+              seriesDefault={seriesFor(c.theme)} nicheDefault={nicheDefault} defaultHours={defaultHours} />
           ))}
         </div>
       )}

@@ -39,6 +39,20 @@ export async function runWorkflow(file: string, topic?: string): Promise<ActionR
   return { ok: true, message: "ส่งคำสั่งรันแล้ว — GitHub จะเริ่มภายในไม่กี่วินาที" };
 }
 
+/** Burst: make `count` story videos back to back (story-video.yml runs them one at a time). */
+export async function runStoryBurst(count: number, preview: boolean): Promise<ActionResult> {
+  await requireSession();
+  const n = Math.round(Number(count));
+  if (!Number.isFinite(n) || n < 1 || n > 60) return { ok: false, message: "จำนวนคลิปต้องอยู่ระหว่าง 1–60" };
+  try {
+    await gh.dispatch("story-video.yml", { count: String(n), preview: String(preview) });
+  } catch (e) {
+    return fail(e, "สั่งรัวคลิปไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: `สั่งรัว ${n} คลิปแล้ว${preview ? " (ตัวอย่าง · เข้าหน้ารีวิว ไม่โพสต์)" : ""} — ใช้เวลาราว ${Math.ceil((n * 17) / 60)} ชม.` };
+}
+
 export async function setWorkflowEnabled(file: string, enabled: boolean): Promise<ActionResult> {
   await requireSession();
   if (!WORKFLOW_FILES.includes(file)) return { ok: false, message: "ไม่รู้จัก workflow นี้" };

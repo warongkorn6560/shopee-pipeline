@@ -97,6 +97,19 @@ export async function listRunsFor(file: string, limit = 5): Promise<Run[]> {
   }
 }
 
+/** Progress of a matrix run: jobs whose name starts with `prefix`. */
+export async function jobProgress(runId: number, prefix: string): Promise<{ total: number; done: number; failed: number }> {
+  const data = await gh<{ jobs: { name: string; status: string; conclusion: string | null }[] }>(
+    `/actions/runs/${runId}/jobs?per_page=100`,
+  );
+  const jobs = data.jobs.filter((j) => j.name.startsWith(prefix));
+  return {
+    total: jobs.length,
+    done: jobs.filter((j) => j.status === "completed").length,
+    failed: jobs.filter((j) => j.conclusion === "failure").length,
+  };
+}
+
 export async function failedStep(runId: number): Promise<string | null> {
   const data = await gh<{ jobs: { steps?: { name: string; conclusion: string | null }[] }[] }>(
     `/actions/runs/${runId}/jobs`,
