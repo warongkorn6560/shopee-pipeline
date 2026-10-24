@@ -4,11 +4,11 @@ import { cookies } from "next/headers";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/dal";
-import { POST_VIDEO_WORKFLOW, VARIABLES, WORKFLOW_FILES } from "@/lib/flows";
+import { VARIABLES, WORKFLOW_FILES } from "@/lib/flows";
 import * as gh from "@/lib/github";
 import { fillImages, parseAffiliateCsv, productImage } from "@/lib/shopee";
 import * as channels from "@/lib/channels";
-import * as posting from "@/lib/posting";
+import * as posting from "@/lib/post-video";
 import * as social from "@/lib/social";
 import * as store from "@/lib/store";
 import { SESSION_COOKIE } from "@/lib/session";
@@ -232,7 +232,7 @@ export async function reviewVideo(
     }
     // Approving a story video posts it (post-video.yml publishes to its page).
     if (decision === "approved" && video.flow === "story") {
-      const r = await requestPost(id);
+      const r = await posting.requestPost(id);
       refresh();
       return r.ok ? { ok: true, message: "ผ่านแล้ว · กำลังโพสต์… (ประมาณ 2–5 นาที)" } : { ok: false, message: `ผ่านแล้ว แต่สั่งโพสต์ไม่สำเร็จ — ${r.message}` };
     }
@@ -244,32 +244,9 @@ export async function reviewVideo(
   return { ok: true, message: opts.requeue ? `${label} · ส่งกลับเข้าคิวให้ทำใหม่` : label };
 }
 
-async function requestPost(id: string): Promise<ActionResult> {
-  if (!gh.githubConfigured()) return { ok: false, message: "ยังไม่ได้เชื่อม GitHub" };
-  try {
-    // Retry only what hasn't posted yet, so Facebook/Instagram never get a duplicate.
-    const v = (await store.list("videos")).find((x) => x.id === id);
-    if (!v) return { ok: false, message: "ไม่พบวิดีโอนี้แล้ว" };
-    const todo = posting.pending(v, await channels.primaryChannelId());
-    if (!todo.length) return { ok: false, message: "โพสต์ครบทุกช่องทางแล้ว" };
-    const first = !v.published || !Object.keys(v.published).some((k) => (posting.PLATFORMS as readonly string[]).includes(k));
-    if (first && v.postRequestedAt && Date.now() - Date.parse(v.postRequestedAt) < 15 * 60_000) {
-      return { ok: false, message: "กำลังโพสต์อยู่ — รอผลสักครู่ก่อนกดอีกครั้ง" };
-    }
-    await gh.dispatch(POST_VIDEO_WORKFLOW, first ? { video_id: id } : { video_id: id, only: todo.join(",") });
-    await store.mutate("videos", (items) => {
-      const v = items.find((x) => x.id === id);
-      if (v) v.postRequestedAt = store.now();
-    });
-  } catch (e) {
-    return fail(e, "สั่งโพสต์ไม่สำเร็จ");
-  }
-  return { ok: true, message: "กำลังโพสต์… (ประมาณ 2–5 นาที)" };
-}
-
 export async function repostVideo(id: string): Promise<ActionResult> {
   await requireSession();
-  const r = await requestPost(id);
+  const r = await posting.requestPost(id);
   refresh();
   return r;
 }
