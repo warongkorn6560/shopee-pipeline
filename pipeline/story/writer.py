@@ -67,7 +67,14 @@ REACTION_STYLE = """
 EDITING STYLE: "reaction". The video is cut like a fun explainer with a cartoon pangolin ranger who
 reacts to every line, so write with more energy: short punchy sentences, a surprise in every beat,
 conversational Thai ("รู้ไหม…", "เดี๋ยวนะ…", "ใช่ครับ…" style rhythm without slang). Every fact rule
-above still applies exactly — the energy is in the delivery, never in exaggeration.
+above still applies exactly — the energy is in the delivery, never in exaggeration:
+- No intensifiers the notes don't support ("มาก", "ที่สุด", "ทั้ง 24 ชั่วโมง", "ทุกตัว", "เท่านั้น").
+  If the notes say "mostly by day", say that; never round a claim up to make it more dramatic.
+- Every number on screen (punch, callout_text) must appear in the SOURCE NOTES, copied exactly
+  (you may only add the unit). If a beat has no sourced number, use a label or "none".
+- Locations stay at province or national-park level, in narration, chip and caption alike — never a
+  district, sub-district, village, canal or named spot for a threatened species, and never ask
+  viewers where they have seen one.
 
 EXTRA FIELDS PER BEAT
 - emotion: the mascot's reaction to this line — shock (a surprising number), think (a question),
@@ -561,14 +568,16 @@ def write_reviewed_story(topic: str, angle: str = "", style: str = "classic") ->
     if ok:
         print("  [review] passed standards check")
         return plan
-    print(f"  [review] failed: {issues}")
-    plan = write_story(topic, (angle + "\n\nThe previous draft FAILED the standards review for these reasons — "
-                               "fix every one:\n- " + "\n- ".join(issues)).strip(), style)
-    ok, issues = compliance_review(plan)
-    if not ok:
-        raise ComplianceError("ไม่ผ่านการตรวจมาตรฐานเนื้อหา: " + " | ".join(issues))
-    print("  [review] passed on rewrite")
-    return plan
+    for attempt in (1, 2):                    # up to two rewrites with the editor's notes, then fail closed
+        print(f"  [review] failed: {issues}")
+        plan = write_story(topic, (angle + "\n\nThe previous draft FAILED the standards review for these reasons — "
+                                   "fix every one, and when unsure, cut the claim rather than reword it:\n- "
+                                   + "\n- ".join(issues)).strip(), style)
+        ok, issues = compliance_review(plan)
+        if ok:
+            print(f"  [review] passed on rewrite {attempt}")
+            return plan
+    raise ComplianceError("ไม่ผ่านการตรวจมาตรฐานเนื้อหา: " + " | ".join(issues))
 
 
 def mock_story(topic: str) -> StoryPlan:
