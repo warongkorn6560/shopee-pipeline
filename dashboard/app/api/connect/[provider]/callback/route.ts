@@ -10,6 +10,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ provide
   const q = request.nextUrl.searchParams;
   const expected = request.cookies.get(`oauth_${p}`)?.value;
   const fail = (msg: string) => {
+    console.error(`[connect:${provider}] ${msg}`);
     back.searchParams.set("social_error", msg);
     return NextResponse.redirect(back);
   };

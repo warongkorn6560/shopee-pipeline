@@ -147,6 +147,22 @@ export async function completeConnect(p: Provider, code: string, origin: string)
       access_token: long.access_token, fields: "id,name,access_token", limit: "100",
     })}`), "อ่านรายชื่อเพจไม่สำเร็จ");
     const list = pages.data.map((x) => ({ id: x.id, name: x.name, token: (x as unknown as { access_token: string }).access_token }));
+    if (!list.length) {
+      // Facebook Login for Business can leave /me/accounts empty; the pages the user picked are
+      // listed as target_ids on the granted scopes instead.
+      const dbg = await json<{ data: { granular_scopes?: { scope: string; target_ids?: string[] }[] } }>(
+        await fetch(`${GRAPH}/debug_token?${new URLSearchParams({
+          input_token: long.access_token, access_token: `${app.id}|${app.secret}`,
+        })}`), "ตรวจสิทธิ์ token ไม่สำเร็จ");
+      const ids = new Set((dbg.data.granular_scopes ?? []).filter((g) => g.scope.startsWith("pages_"))
+        .flatMap((g) => g.target_ids ?? []));
+      for (const id of ids) {
+        const page = await json<{ id: string; name: string; access_token?: string }>(await fetch(`${GRAPH}/${id}?${new URLSearchParams({
+          fields: "id,name,access_token", access_token: long.access_token,
+        })}`), "อ่านข้อมูลเพจไม่สำเร็จ");
+        if (page.access_token) list.push({ id: page.id, name: page.name, token: page.access_token });
+      }
+    }
     if (!list.length) throw new Error("ไม่พบเพจ — ตอนอนุญาตต้องเลือกเพจอย่างน้อยหนึ่งเพจ");
     if (list.length === 1) {
       await savePage(doc, list[0]);
