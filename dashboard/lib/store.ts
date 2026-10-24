@@ -60,6 +60,7 @@ export interface Video {
   published?: Record<string, unknown>;
   cost?: VideoCost;
   stats?: VideoStats;
+  style?: string; // editing style the pipeline picked (STORY_STYLE_MIX), e.g. "classic" / "reaction"
   channelId?: string; // story videos: the page it was made for (unset = primary)
   postRequestedAt?: string; // approve → post-video.yml dispatched
   createdAt: string;

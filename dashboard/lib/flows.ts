@@ -181,6 +181,17 @@ export const VARIABLES: VarDef[] = [
     help: "ใช้ตอนคิวว่างแล้ว AI เสนอหัวข้อใหม่เอง · ว่างไว้ = ใช้แนวของธีมที่เลือก · ระบบตัดเนื้อหาเกี่ยวกับสถาบันฯ ออกเสมอทุกธีม",
   },
   {
+    name: "STORY_STYLE_MIX", label: "สไตล์การตัดต่อ", scope: "story", kind: "select",
+    workflowDefault: "classic:80,reaction:20",
+    help: "สุ่มสไตล์ต่อคลิปตามสัดส่วน · classic = แบบเดิม · reaction = ตัวละครรีแอ็กชันมุมจอ ป้ายตัวเลขเด้ง ซับตัวใหญ่ ซูมกระแทก · ข้อมูล แผนที่ และภาพจริงเหมือนเดิมทุกสไตล์ · เทียบยอดวิวแต่ละสไตล์ได้ในหน้าสถิติ",
+    options: [
+      { value: "classic:100", label: "แบบเดิมทั้งหมด" },
+      { value: "classic:80,reaction:20", label: "เดิม 80% · reaction 20%" },
+      { value: "classic:50,reaction:50", label: "เดิม 50% · reaction 50%" },
+      { value: "reaction:100", label: "reaction ทั้งหมด" },
+    ],
+  },
+  {
     name: "STORY_AUTO_TOPIC", label: "คิวว่างให้ AI คิดหัวข้อเอง", scope: "story", kind: "segmented",
     workflowDefault: "on",
     help: "on = ถ้าไม่มีหัวข้อสถานะ Ready จะเสนอหัวข้อใหม่ที่ไม่ซ้ำของเดิม · off = ข้ามวันนั้น",

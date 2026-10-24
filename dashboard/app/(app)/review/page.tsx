@@ -91,7 +91,10 @@ function VideoCard({ v, primaryId, youtube }: { v: Video; primaryId: string; you
     <Card as="article" className="flex h-full flex-col overflow-hidden">
       <div className="flex items-start justify-between gap-3 px-5 pt-4">
         <div className="min-w-0">
-          <FlowTag flow={v.flow} />
+          <span className="flex items-center gap-1.5">
+            <FlowTag flow={v.flow} />
+            {v.style && v.style !== "classic" && <span className="rounded bg-surface-2 px-1.5 text-[10px] font-medium text-ink-2">สไตล์ {v.style}</span>}
+          </span>
           <h2 className="mt-1.5 line-clamp-2 font-display text-[16px] font-semibold leading-snug text-ink">{v.title || "(ไม่มีชื่อ)"}</h2>
           <p className="mt-0.5 text-xs text-ink-3" title={thaiDateTime(v.createdAt)}>
             {relative(v.createdAt)} · {v.size ? bytes(v.size) : ""}

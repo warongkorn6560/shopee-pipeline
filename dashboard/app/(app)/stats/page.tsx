@@ -48,6 +48,12 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/stats"
   const totals = STAT_PLATFORMS.map((k) => ({
     k, views: rows.reduce((t, r) => t + r.p[k].views, 0), reactions: rows.reduce((t, r) => t + r.p[k].reactions, 0),
   }));
+  const styles = new Map<string, typeof rows>();
+  for (const r of rows) styles.set(r.v.style ?? "classic", [...(styles.get(r.v.style ?? "classic") ?? []), r]);
+  const byStyle = [...styles].map(([style, rs]) => {
+    const views = rs.reduce((t, r) => t + r.views, 0);
+    return { style, count: rs.length, avgViews: views / rs.length, rate: views ? rs.reduce((t, r) => t + r.reactions, 0) / views : 0 };
+  }).sort((a, b) => b.avgViews - a.avgViews);
   const allViews = rows.reduce((t, r) => t + r.views, 0);
   const allReactions = rows.reduce((t, r) => t + r.reactions, 0);
   const href = (q: { range?: string; channel?: string }) => {
@@ -76,6 +82,21 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/stats"
         <Total label="รวมทุกช่องทาง" views={allViews} reactions={allReactions} note={`${rows.length} คลิป`} />
         {totals.map((t) => <Total key={t.k} label={PLATFORM_LABEL[t.k]} views={t.views} reactions={t.reactions} />)}
       </div>
+
+      {byStyle.length > 1 && (
+        <Card>
+          <CardHeader eyebrow="ทดลองสไตล์การตัดต่อ" title="สไตล์ไหนคนดูมากกว่า" />
+          <ul className="mt-3 divide-y divide-line">
+            {byStyle.map((s) => (
+              <li key={s.style} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm">
+                <span className="font-medium text-ink">{s.style}</span>
+                <span className="text-ink-2">{s.count} คลิป · เฉลี่ย {compact(s.avgViews)} วิว/คลิป · มีส่วนร่วม {(s.rate * 100).toFixed(1)}%</span>
+              </li>
+            ))}
+          </ul>
+          <div className="h-2" />
+        </Card>
+      )}
 
       <Card>
         <CardHeader eyebrow="เรียงตามยอดวิวรวม" title="คลิปที่คนดูมากที่สุด" />

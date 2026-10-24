@@ -181,7 +181,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
           .filter((v) => v.flow === flow && Date.parse(v.createdAt) >= since && hasPost(v))
           .map((v) => ({
             id: v.id, title: v.title, refId: v.refId, topic: topics.get(v.refId) ?? "", channelId: v.channelId ?? "",
-            published: v.published ?? {}, stats: v.stats ?? null, createdAt: v.createdAt,
+            published: v.published ?? {}, stats: v.stats ?? null, style: v.style ?? "classic", createdAt: v.createdAt,
           })),
       });
     }
@@ -237,6 +237,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         published: (body.published as Record<string, unknown>) ?? undefined,
         cost: parseCost(body.cost),
         channelId: typeof body.channelId === "string" && body.channelId ? body.channelId : undefined,
+        style: typeof body.style === "string" && body.style ? body.style.slice(0, 30) : undefined,
         status, createdAt: now(),
       };
       await mutate("videos", (items) => {
