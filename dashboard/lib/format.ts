@@ -47,7 +47,8 @@ export function parseHours(v: string): number[] {
 export const hourText = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
 export function hoursLabel(hours: number[]): string {
-  return hours.length ? `ทุกวัน ${hours.map(hourText).join(", ")} น.` : "—";
+  // No valid hour (e.g. "99") means scheduled posting is paused.
+  return hours.length ? `ทุกวัน ${hours.map(hourText).join(", ")} น.` : "หยุดโพสต์ตามเวลาชั่วคราว";
 }
 
 /** Next start of one of these Bangkok (UTC+7) hours. */

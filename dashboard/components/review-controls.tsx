@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Copy, RotateCcw, Send, X } from "lucide-react";
-import { reviewVideo } from "@/app/(app)/actions";
+import { Check, Copy, RotateCcw, Send, Upload, X } from "lucide-react";
+import { repostVideo, reviewVideo } from "@/app/(app)/actions";
 import type { VideoStatus } from "@/lib/store";
 import { useToast } from "./toast";
 import { btn, cx } from "./ui";
@@ -30,7 +30,7 @@ export function CopyButton({ text, label = "คัดลอก" }: { text: strin
   );
 }
 
-export function ReviewActions({ id, status }: { id: string; status: VideoStatus }) {
+export function ReviewActions({ id, status, canPost }: { id: string; status: VideoStatus; canPost?: boolean }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const act = (decision: VideoStatus, requeue = false) =>
@@ -39,8 +39,9 @@ export function ReviewActions({ id, status }: { id: string; status: VideoStatus 
   if (status === "review") {
     return (
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={pending} onClick={() => act("approved")} className={cx(btn.base, btn.primary, small)}>
-          <Check className="size-4" /> ผ่าน
+        <button type="button" disabled={pending} onClick={() => act("approved")} className={cx(btn.base, btn.primary, small)}
+          title={canPost ? "ผ่าน แล้วโพสต์ไปเพจของคลิปนี้ทันที" : undefined}>
+          <Check className="size-4" /> {canPost ? "ผ่าน · โพสต์เลย" : "ผ่าน"}
         </button>
         <button type="button" disabled={pending} onClick={() => act("rejected")} className={cx(btn.base, btn.secondary, small)}>
           <X className="size-4" /> ไม่ผ่าน
@@ -53,9 +54,14 @@ export function ReviewActions({ id, status }: { id: string; status: VideoStatus 
   }
   return (
     <div className="flex flex-wrap gap-2">
+      {status === "approved" && canPost && (
+        <button type="button" disabled={pending} onClick={() => start(async () => toast(await repostVideo(id)))} className={cx(btn.base, btn.primary, small)}>
+          <Upload className="size-4" /> โพสต์อีกครั้ง
+        </button>
+      )}
       {status === "approved" && (
-        <button type="button" disabled={pending} onClick={() => act("posted")} className={cx(btn.base, btn.primary, small)}>
-          <Send className="size-4" /> โพสต์แล้ว
+        <button type="button" disabled={pending} onClick={() => act("posted")} className={cx(btn.base, canPost ? btn.secondary : btn.primary, small)}>
+          <Send className="size-4" /> {canPost ? "ทำเครื่องหมายว่าโพสต์แล้ว" : "โพสต์แล้ว"}
         </button>
       )}
       {status === "rejected" && (

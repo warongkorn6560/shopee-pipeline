@@ -356,7 +356,7 @@ async function Channels() {
   const [data, conn, vars] = await Promise.all([
     settle(channels()), settle(connections()), githubConfigured() ? getVariables() : Promise.resolve(null),
   ]);
-  const defaultHours = parseHours(effective(vars?.ok ? vars.value : null, "STORY_POST_HOURS")).map(hourText).join(", ");
+  const defaultHours = parseHours(effective(vars?.ok ? vars.value : null, "STORY_POST_HOURS")).map(hourText).join(", ") || "พักอยู่";
   if (!data.ok) return <InlineError title="อ่านรายชื่อเพจไม่สำเร็จ" detail={data.error} />;
   const list = data.value.channels;
   const appReady = conn.ok && conn.value.metaApp;

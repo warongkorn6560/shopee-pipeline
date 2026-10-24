@@ -62,7 +62,7 @@ export async function FlowPanel({ flowId }: { flowId: FlowId }) {
     const live = ch.ok ? ch.value.channels.filter((c) => c.enabled) : [];
     if (live.length) hours = [...new Set(live.flatMap((c) => (c.postHours.length ? c.postHours : hours)))].sort((a, b) => a - b);
   }
-  const next = enabled ? (hours.length ? nextAtHours(hours) : nextDailyRun(primary.cron)) : null;
+  const next = enabled ? (primary.hoursVar ? nextAtHours(hours) : nextDailyRun(primary.cron)) : null;
   const isLive = latest ? latest.status !== "completed" : false;
   const stateTone: Tone = isLive ? "live" : !ctx.github ? "idle" : !wf ? "warn" : enabled ? "ok" : "idle";
   const stateLabel = isLive ? "ON AIR" : !ctx.github ? "ไม่ได้เชื่อม GitHub" : !wf ? "ยังไม่มี workflow" : enabled ? "รันตามเวลา" : "หยุดอยู่";
@@ -102,8 +102,8 @@ export async function FlowPanel({ flowId }: { flowId: FlowId }) {
       <dl className="mx-5 mt-5 grid grid-cols-1 divide-y divide-line rounded-xl border border-line bg-surface-2/60 text-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <div className="px-4 py-3">
           <dt className="eyebrow">ตารางเวลา</dt>
-          <dd className="mt-1 font-medium text-ink">{hours.length ? hoursLabel(hours) : primary.scheduleLabel}</dd>
-          <dd className="text-xs text-ink-3">{next ? `ถัดไป ${relative(next)}` : enabled === false ? "หยุดอยู่ · กดรันเองได้" : "—"}</dd>
+          <dd className="mt-1 font-medium text-ink">{primary.hoursVar ? hoursLabel(hours) : primary.scheduleLabel}</dd>
+          <dd className="text-xs text-ink-3">{next ? `ถัดไป ${relative(next)}` : enabled === false || (primary.hoursVar && !hours.length) ? "หยุดอยู่ · กดรันเองได้" : "—"}</dd>
         </div>
         <div className="px-4 py-3">
           <dt className="eyebrow">รันล่าสุด</dt>

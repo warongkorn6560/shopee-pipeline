@@ -135,8 +135,9 @@ function VideoCard({ v }: { v: Video }) {
           <p className="text-xs text-ink-3">แหล่งข้อมูล: {v.sources.join(" · ")}</p>
         ) : null}
         {v.note && <p className="rounded-lg bg-bad-soft px-3 py-2 text-xs text-bad">หมายเหตุ: {v.note}</p>}
+        <PostStatus v={v} />
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
-          <ReviewActions id={v.id} status={v.status} />
+          <ReviewActions id={v.id} status={v.status} canPost={v.flow === "story"} />
           {v.pathname && (
             <a href={`/api/videos/${v.id}`} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
               <Download className="size-4" /> ดาวน์โหลด
@@ -151,5 +152,29 @@ function VideoCard({ v }: { v: Video }) {
       </div>
     </Card>
     </div>
+  );
+}
+
+const PLATFORM: Record<string, string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok", telegram: "Telegram" };
+
+/** Where an approved video was posted (from post-video.yml's report). */
+function PostStatus({ v }: { v: Video }) {
+  const results = Object.entries(v.published ?? {}).filter(([k]) => k in PLATFORM && k !== "telegram");
+  if (!results.length) {
+    if (v.status !== "approved" || !v.postRequestedAt) return null;
+    return <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-ink-2">กำลังโพสต์… สั่งไว้ {relative(v.postRequestedAt)}</p>;
+  }
+  return (
+    <ul className="flex flex-wrap gap-1.5 text-xs">
+      {results.map(([k, r]) => {
+        const err = r && typeof r === "object" && "error" in r ? String((r as { error: unknown }).error) : null;
+        const skipped = r && typeof r === "object" && "skipped" in r;
+        return (
+          <li key={k} title={err ?? undefined}>
+            <Pill tone={err ? "bad" : skipped ? "idle" : "ok"}>{PLATFORM[k]} · {err ? "ไม่สำเร็จ" : skipped ? "ข้าม" : "โพสต์แล้ว"}</Pill>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

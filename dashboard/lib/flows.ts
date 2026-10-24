@@ -83,7 +83,9 @@ export const FLOWS: FlowDef[] = [
   },
 ];
 
-export const WORKFLOW_FILES = FLOWS.flatMap((f) => f.workflows.map((w) => w.file));
+/** Posts one approved review video (dispatched by the approve button). */
+export const POST_VIDEO_WORKFLOW = "post-video.yml";
+export const WORKFLOW_FILES = [...FLOWS.flatMap((f) => f.workflows.map((w) => w.file)), POST_VIDEO_WORKFLOW];
 
 export function flowById(id: string): FlowDef | undefined {
   return FLOWS.find((f) => f.id === id);
@@ -131,6 +133,7 @@ export const VARIABLES: VarDef[] = [
       { value: "12,20", label: "วันละ 2 · 12:00, 20:00" },
       { value: "9,13,19", label: "วันละ 3 · 09:00, 13:00, 19:00" },
       { value: "8,12,20", label: "วันละ 3 · 08:00, 12:00, 20:00" },
+      { value: "99", label: "พัก · ไม่โพสต์ตามเวลา", hint: "สั่งรันเองได้" },
     ],
   },
   {
@@ -145,6 +148,7 @@ export const VARIABLES: VarDef[] = [
       { value: "8,19", label: "วันละ 2 · 08:00, 19:00" },
       { value: "8,12,19", label: "วันละ 3 · 08:00, 12:00, 19:00" },
       { value: "9,13,20", label: "วันละ 3 · 09:00, 13:00, 20:00" },
+      { value: "99", label: "พัก · ไม่โพสต์ตามเวลา", hint: "สั่งรันเองได้" },
     ],
   },
   {

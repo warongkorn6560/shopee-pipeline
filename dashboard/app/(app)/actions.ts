@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/dal";
-import { VARIABLES, WORKFLOW_FILES } from "@/lib/flows";
+import { POST_VIDEO_WORKFLOW, VARIABLES, WORKFLOW_FILES } from "@/lib/flows";
 import * as gh from "@/lib/github";
 import { fillImages, parseAffiliateCsv, productImage } from "@/lib/shopee";
 import * as channels from "@/lib/channels";
@@ -229,12 +229,39 @@ export async function reviewVideo(
         }
       });
     }
+    // Approving a story video posts it (post-video.yml publishes to its page).
+    if (decision === "approved" && video.flow === "story") {
+      const r = await requestPost(id);
+      refresh();
+      return r.ok ? { ok: true, message: "ผ่านแล้ว · กำลังโพสต์… (ประมาณ 2–5 นาที)" } : { ok: false, message: `ผ่านแล้ว แต่สั่งโพสต์ไม่สำเร็จ — ${r.message}` };
+    }
   } catch (e) {
     return fail(e, "บันทึกผลรีวิวไม่สำเร็จ");
   }
   refresh();
   const label = { approved: "ผ่านแล้ว", rejected: "ไม่ผ่าน", posted: "บันทึกว่าโพสต์แล้ว", review: "ย้ายกลับไปรอตรวจ" }[decision];
   return { ok: true, message: opts.requeue ? `${label} · ส่งกลับเข้าคิวให้ทำใหม่` : label };
+}
+
+async function requestPost(id: string): Promise<ActionResult> {
+  if (!gh.githubConfigured()) return { ok: false, message: "ยังไม่ได้เชื่อม GitHub" };
+  try {
+    await gh.dispatch(POST_VIDEO_WORKFLOW, { video_id: id });
+    await store.mutate("videos", (items) => {
+      const v = items.find((x) => x.id === id);
+      if (v) v.postRequestedAt = store.now();
+    });
+  } catch (e) {
+    return fail(e, "สั่งโพสต์ไม่สำเร็จ");
+  }
+  return { ok: true, message: "กำลังโพสต์… (ประมาณ 2–5 นาที)" };
+}
+
+export async function repostVideo(id: string): Promise<ActionResult> {
+  await requireSession();
+  const r = await requestPost(id);
+  refresh();
+  return r;
 }
 
 export async function saveClaudeKey(_: ActionResult | null, form: FormData): Promise<ActionResult> {

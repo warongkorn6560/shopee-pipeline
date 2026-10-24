@@ -59,6 +59,8 @@ export interface Video {
   runUrl?: string;
   published?: Record<string, unknown>;
   cost?: VideoCost;
+  channelId?: string; // story videos: the page it was made for (unset = primary)
+  postRequestedAt?: string; // approve → post-video.yml dispatched
   createdAt: string;
   reviewedAt?: string;
 }

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { channelToken, channels, primaryChannelId } from "@/lib/channels";
 import { fillImages, productImage } from "@/lib/shopee";
 import {
-  expireOldVideos, list, mutate, newId, now, presignedUpload,
+  expireOldVideos, list, mutate, newId, now, presignedPlayback, presignedUpload,
   type Product, type Story, type Video, type VideoStatus,
 } from "@/lib/store";
 
@@ -150,6 +150,34 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
       return NextResponse.json({ channelId: got.channel.id, pageId: got.channel.pageId, name: got.channel.name, token: got.token });
     }
 
+    case "video": {
+      // Everything post-video.yml needs to publish one approved video.
+      if (typeof body.id !== "string") return bad("id required");
+      const v = (await list("videos")).find((x) => x.id === body.id);
+      if (!v) return bad("video not found", 404);
+      if (!v.pathname) return bad("video file has expired", 410);
+      const primaryId = await primaryChannelId();
+      const ch = v.channelId ? await channelToken(v.channelId) : null;
+      return NextResponse.json({
+        id: v.id, flow: v.flow, title: v.title, caption: v.caption,
+        url: await presignedPlayback(v.pathname, 60),
+        primary: !v.channelId || v.channelId === primaryId,
+        ...(ch ? { channelId: ch.channel.id, channelName: ch.channel.name, pageId: ch.channel.pageId, token: ch.token } : {}),
+      });
+    }
+
+    case "video-posted": {
+      if (typeof body.id !== "string") return bad("id required");
+      const found = await mutate("videos", (items) => {
+        const v = items.find((x) => x.id === body.id);
+        if (!v) return false;
+        v.published = (body.published as Record<string, unknown>) ?? v.published;
+        if (body.posted === true) v.status = "posted";
+        return true;
+      });
+      return found ? NextResponse.json({ ok: true }) : bad("not found", 404);
+    }
+
     case "upload-url": {
       if (!isFlow(body.flow)) return bad("flow required");
       const videoId = newId();
@@ -175,6 +203,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         runUrl: body.runUrl ? String(body.runUrl) : undefined,
         published: (body.published as Record<string, unknown>) ?? undefined,
         cost: parseCost(body.cost),
+        channelId: typeof body.channelId === "string" && body.channelId ? body.channelId : undefined,
         status, createdAt: now(),
       };
       await mutate("videos", (items) => {
