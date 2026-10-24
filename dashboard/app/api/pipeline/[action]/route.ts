@@ -172,7 +172,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
       const found = await mutate("videos", (items) => {
         const v = items.find((x) => x.id === body.id);
         if (!v) return false;
-        v.published = (body.published as Record<string, unknown>) ?? v.published;
+        // Merge, so a retry for one platform never erases another platform's success.
+        v.published = { ...v.published, ...((body.published as Record<string, unknown>) ?? {}) };
         if (body.posted === true) v.status = "posted";
         return true;
       });
