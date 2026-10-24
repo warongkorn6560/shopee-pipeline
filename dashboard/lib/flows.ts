@@ -21,6 +21,7 @@ export interface WorkflowRef {
   primary?: boolean;
   cron: string;
   scheduleLabel: string;
+  hoursVar?: string; // GitHub variable with the Bangkok posting hours ("9,13,19"); the workflow runs hourly and gates on it
   inputs?: { topic?: boolean };
 }
 
@@ -43,7 +44,7 @@ export const FLOWS: FlowDef[] = [
     short: "Flow A",
     tagline: "คลิปขายสินค้าจากรูปจริง + เสียงพากย์ไทย",
     workflows: [
-      { file: "daily-video.yml", role: "สร้างและส่งวิดีโอ", primary: true, cron: "0 2 * * *", scheduleLabel: "ทุกวัน 09:00 น." },
+      { file: "daily-video.yml", role: "สร้างและส่งวิดีโอ", primary: true, cron: "0 2 * * *", scheduleLabel: "ทุกวัน 09:00 น.", hoursVar: "SHOP_POST_HOURS" },
     ],
     steps: [
       { key: "input", label: "สินค้า", tool: "คิวสินค้าในเว็บนี้", service: "store" },
@@ -65,7 +66,7 @@ export const FLOWS: FlowDef[] = [
     workflows: [
       {
         file: "story-video.yml", role: "สร้างและส่งคลิปเล่าเรื่อง", primary: true,
-        cron: "0 12 * * *", scheduleLabel: "ทุกวัน 19:00 น.", inputs: { topic: true },
+        cron: "0 12 * * *", scheduleLabel: "ทุกวัน 19:00 น.", hoursVar: "STORY_POST_HOURS", inputs: { topic: true },
       },
     ],
     steps: [
@@ -117,6 +118,34 @@ export const VARIABLES: VarDef[] = [
       { value: "auto", label: "โพสต์อัตโนมัติ", hint: "TikTok · IG" },
     ],
     danger: "auto จะโพสต์สาธารณะทันทีโดยไม่มีคนตรวจ",
+  },
+  {
+    name: "SHOP_POST_HOURS", label: "จำนวนและเวลาโพสต์ต่อวัน", scope: "shopee", kind: "select",
+    workflowDefault: "9",
+    help: "เวลาไทย ระบบเช็กทุกชั่วโมงแล้วทำคลิปเมื่อถึงเวลาที่เลือก (อาจช้ากว่าเวลาจริง 5–20 นาที) · แต่ละรอบใช้สินค้าหนึ่งชิ้นจากคิว",
+    options: [
+      { value: "9", label: "วันละ 1 · 09:00" },
+      { value: "12", label: "วันละ 1 · 12:00" },
+      { value: "19", label: "วันละ 1 · 19:00" },
+      { value: "9,19", label: "วันละ 2 · 09:00, 19:00" },
+      { value: "12,20", label: "วันละ 2 · 12:00, 20:00" },
+      { value: "9,13,19", label: "วันละ 3 · 09:00, 13:00, 19:00" },
+      { value: "8,12,20", label: "วันละ 3 · 08:00, 12:00, 20:00" },
+    ],
+  },
+  {
+    name: "STORY_POST_HOURS", label: "จำนวนและเวลาโพสต์ต่อวัน", scope: "story", kind: "select",
+    workflowDefault: "19",
+    help: "เวลาไทย ใช้กับเพจที่ยังไม่ได้ตั้งเวลาของตัวเองในแท็บเพจ & ช่องทาง · ระบบเช็กทุกชั่วโมง (อาจช้ากว่าเวลาจริง 5–20 นาที) · แต่ละรอบใช้หัวข้อหนึ่งเรื่อง",
+    options: [
+      { value: "19", label: "วันละ 1 · 19:00" },
+      { value: "12", label: "วันละ 1 · 12:00" },
+      { value: "20", label: "วันละ 1 · 20:00" },
+      { value: "12,19", label: "วันละ 2 · 12:00, 19:00" },
+      { value: "8,19", label: "วันละ 2 · 08:00, 19:00" },
+      { value: "8,12,19", label: "วันละ 3 · 08:00, 12:00, 19:00" },
+      { value: "9,13,20", label: "วันละ 3 · 09:00, 13:00, 20:00" },
+    ],
   },
   {
     name: "STORY_PUBLISH_MODE", label: "โหมดการโพสต์", scope: "story", kind: "segmented",

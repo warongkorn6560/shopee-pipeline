@@ -2,7 +2,7 @@ name: Daily story video
 
 on:
   schedule:
-    - cron: "0 12 * * *"   # 19:00 Asia/Bangkok — evening is prime time on Facebook
+    - cron: "7 * * * *"   # hourly; each channel runs at its own posting hours (Bangkok), default STORY_POST_HOURS
   workflow_dispatch:
     inputs:
       topic:
@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.list.outputs.matrix }}
+      run: ${{ steps.list.outputs.run }}
     steps:
       - id: list
         env:
@@ -36,23 +37,32 @@ jobs:
           DASHBOARD_URL: ${{ vars.DASHBOARD_URL || 'https://pipeline-dashboard-seven-kappa.vercel.app' }}
           ONLY: ${{ inputs.channel }}
           TOPIC: ${{ inputs.topic }}
+          EVENT: ${{ github.event_name }}
+          DEFAULT_HOURS: ${{ vars.STORY_POST_HOURS || '19' }}
         run: |
           res=$(curl -sf -H "Authorization: Bearer $PIPELINE_API_KEY" "$DASHBOARD_URL/api/pipeline/channels" || echo '{}')
-          matrix=$(jq -c --arg only "$ONLY" --arg topic "$TOPIC" '
+          hour=$(TZ=Asia/Bangkok date +%-H)
+          matrix=$(jq -c --arg only "$ONLY" --arg topic "$TOPIC" --arg event "$EVENT" --argjson hour "$hour" \
+                      --arg dflt "$DEFAULT_HOURS" '
             (.primaryId // "") as $p
-            | [(.channels // [])[] | select(.enabled)
+            | ($dflt | split(",") | map(select(. != "") | tonumber)) as $default
+            | def due: $event != "schedule" or ((if ((.postHours // []) | length) > 0 then .postHours else $default end) | index($hour) != null);
+            [(.channels // [])[] | select(.enabled) | select(due)
                | {id, theme: (.theme // ""), series: (.seriesName // ""), niche: (.niche // ""),
                   mode: (.publishMode // ""), primary: (if .id == $p then "true" else "false" end)}]
             | if $only != "" then map(select(.id == $only))
               elif $topic != "" then map(select(.primary == "true"))
               else . end
-            | if length == 0 then [{id: "", theme: "", series: "", niche: "", mode: "", primary: "true"}] else . end
-            | {include: .}' <<<"$res")
+            | if length == 0 and ((($res_channels | length) == 0) and ({} | due)) then [{id: "", theme: "", series: "", niche: "", mode: "", primary: "true"}] else . end
+            | {include: .}' --argjson res_channels "$(jq -c '[(.channels // [])[] | select(.enabled)]' <<<"$res")" <<<"$res")
+          run=$(jq -r 'if (.include | length) > 0 then "true" else "false" end' <<<"$matrix")
+          echo "Bangkok hour $hour · run=$run · $matrix"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          echo "$matrix"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
 
   make-story:
     needs: channels
+    if: needs.channels.outputs.run == 'true'
     strategy:
       fail-fast: false
       max-parallel: 2

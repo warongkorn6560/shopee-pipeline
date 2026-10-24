@@ -2,7 +2,7 @@ name: Daily Shopee AI video
 
 on:
   schedule:
-    - cron: "0 2 * * *"   # 09:00 Asia/Bangkok, once per day
+    - cron: "7 * * * *"   # hourly; the gate job runs only at the hours in SHOP_POST_HOURS (Bangkok)
   workflow_dispatch:        # manual "Run workflow" button / dashboard
 
 concurrency:
@@ -10,7 +10,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        env:
+          HOURS: ${{ vars.SHOP_POST_HOURS || '9' }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          now=$(TZ=Asia/Bangkok date +%-H)
+          run=false
+          [ "$EVENT" != "schedule" ] && run=true
+          for h in ${HOURS//,/ }; do [ "$h" = "$now" ] && run=true; done
+          echo "Bangkok hour $now · post hours $HOURS · run=$run"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
   make-video:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
