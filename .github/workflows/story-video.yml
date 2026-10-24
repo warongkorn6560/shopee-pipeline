@@ -13,6 +13,11 @@ on:
         description: "Target length in seconds for this run (empty = STORY_TARGET_SECONDS)"
         required: false
         default: ""
+      preview:
+        description: "Preview only: send to Telegram + review page, never post (overrides the page's mode)"
+        type: boolean
+        required: false
+        default: false
       count:
         description: "Burst: how many videos to make back to back (one after another, each posted when done)"
         required: false
@@ -119,7 +124,7 @@ jobs:
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
           TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
           # review = dashboard review page + Telegram (safe default). auto = also post to Facebook/TikTok/IG.
-          PUBLISH_MODE: ${{ matrix.mode || vars.STORY_PUBLISH_MODE || 'review' }}
+          PUBLISH_MODE: ${{ inputs.preview && 'review' || matrix.mode || vars.STORY_PUBLISH_MODE || 'review' }}
           STORY_CHANNEL_ID: ${{ matrix.id }}
           STORY_CHANNEL_PRIMARY: ${{ matrix.primary }}
           STORY_SERIES_NAME: ${{ matrix.series || vars.STORY_SERIES_NAME }}
