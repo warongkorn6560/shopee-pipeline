@@ -13,5 +13,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // /api/pipeline authenticates with PIPELINE_API_KEY and /api/cron with CRON_SECRET inside the route.
-  matcher: ["/((?!login|about|privacy|terms|brand/|api/pipeline|api/telegram|api/cron|_next/static|_next/image|icon.svg|favicon.ico|robots.txt).*)"],
+  matcher: ["/((?!login|about|privacy|terms|brand/|api/pipeline|api/telegram|api/cron|_next/static|_next/image|icon.svg|favicon.ico|robots.txt|tiktok[A-Za-z0-9]*\\.txt).*)"],
 };
