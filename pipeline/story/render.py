@@ -634,12 +634,13 @@ MAX_MB = 44  # Telegram bots reject uploads over 50 MB
 
 class _Writer:
     def __init__(self, path: Path, seconds: float):
-        # Bitrate sized so the whole file (video + 160k audio) stays under MAX_MB.
-        kbps = max(1500, min(8000, int(MAX_MB * 8 * 1024 / max(seconds, 1) - 200)))
+        # Constant quality (≈12–15 MB per minute of 1080x1920) with a peak cap that also keeps the
+        # file well under Telegram's 50 MB limit.
+        kbps = max(1500, min(4500, int(MAX_MB * 8 * 1024 / max(seconds, 1) - 200)))
         self.proc = subprocess.Popen(
             ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
              "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "veryfast",
-             "-b:v", f"{kbps}k", "-maxrate", f"{int(kbps * 1.15)}k", "-bufsize", f"{kbps * 2}k",
+             "-crf", "26", "-maxrate", f"{kbps}k", "-bufsize", f"{kbps * 2}k",
              "-pix_fmt", "yuv420p", str(path)],
             stdin=subprocess.PIPE)
         self.last: Image.Image | None = None

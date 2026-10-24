@@ -111,7 +111,13 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     live = not (offline or dry_run or no_publish)
 
-    topic = _pick_topic(topic_override, live)
+    if live and hub.stop_for_budget("คลิปเล่าเรื่อง"):
+        return 0
+    try:
+        topic = _pick_topic(topic_override, live)
+    except hub.BudgetStop as e:          # claim said the cap was reached: no auto-topic, no Claude
+        print(f"  ⏸ {e}")
+        return 0
     if not topic:
         print("No Ready topic and STORY_AUTO_TOPIC is off. Add a topic in the dashboard → คิวงาน.")
         return 0

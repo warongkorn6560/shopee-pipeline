@@ -72,7 +72,13 @@ def run_once(source: str = "platform", dry_run: bool = False, offline: bool = Fa
     if source == "platform" and not live:
         print("Test mode: using scraper/products.csv so the dashboard queue is untouched.")
         source = "csv"
-    product = products.get_next_product(source)
+    if live and hub.stop_for_budget("Shopee"):
+        return 0
+    try:
+        product = products.get_next_product(source)
+    except hub.BudgetStop as e:
+        print(f"  ⏸ {e}")
+        return 0
     if not product:
         print("No Ready product in the queue. Add or approve products in the dashboard → คิวงาน.")
         return 0

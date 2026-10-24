@@ -19,6 +19,10 @@ class PlatformError(RuntimeError):
     pass
 
 
+class BudgetStop(RuntimeError):
+    """Month-to-date Claude spend reached CLAUDE_MONTHLY_BUDGET: make nothing this run."""
+
+
 def configured() -> bool:
     return bool(ENV.get("PIPELINE_API_KEY"))
 
@@ -48,7 +52,36 @@ def _call(action: str, payload: dict, timeout: int = 60) -> dict:
 def claim(flow: str, channel_id: str = "") -> dict:
     """Next Ready item for the flow (now marked Producing), or {"item": None, ...}.
     With a channel id, only that channel's stories (and its previous topics) count."""
-    return _call("claim", {"flow": flow, **({"channelId": channel_id} if channel_id else {})})
+    res = _call("claim", {"flow": flow, **({"channelId": channel_id} if channel_id else {})})
+    if res.get("stop") == "budget":
+        raise BudgetStop(res.get("message") or "Claude monthly budget reached")
+    return res
+
+
+def budget() -> dict | None:
+    """{spent, budget, stop, notify} from the dashboard; None when it can't tell (no cap enforced here)."""
+    try:
+        return _call("budget", {})
+    except PlatformError as e:
+        print(f"  [budget] unavailable: {str(e)[:120]}")
+        return None
+
+
+def stop_for_budget(flow_label: str) -> bool:
+    """True when the monthly Claude budget is used up; tells Telegram once a day."""
+    b = budget()
+    if not b or not b.get("stop"):
+        return False
+    msg = (f"⏸ {flow_label}: หยุดทำคลิปชั่วคราว ค่า Claude เดือนนี้ ${float(b.get('spent', 0)):.2f} "
+           f"ถึงงบ ${float(b.get('budget', 0)):.0f} แล้ว — ปรับงบได้ใน dashboard → ตั้งค่า → AI & เสียง")
+    print("  " + msg)
+    if b.get("notify") and ENV.get("TELEGRAM_BOT_TOKEN") and ENV.get("TELEGRAM_CHAT_ID"):
+        try:
+            requests.post(f"https://api.telegram.org/bot{ENV['TELEGRAM_BOT_TOKEN']}/sendMessage", timeout=30,
+                          data={"chat_id": ENV["TELEGRAM_CHAT_ID"], "text": msg})
+        except requests.RequestException:
+            pass
+    return True
 
 
 def update(flow: str, item_id: str, **patch) -> None:
