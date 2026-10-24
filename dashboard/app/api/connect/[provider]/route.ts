@@ -8,7 +8,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ provide
   if (!PROVIDERS.includes(provider as Provider)) return NextResponse.redirect(back);
   const p = provider as Provider;
   if (!appReady(p, await readDoc())) {
-    back.searchParams.set("social_error", p === "tiktok" ? "ใส่ Client key / secret ของแอป TikTok ก่อน" : "ยังไม่ได้ตั้ง META_APP_ID / META_APP_SECRET");
+    back.searchParams.set("social_error", p === "tiktok" ? "ใส่ Client key / secret ของแอป TikTok ก่อน" : p === "youtube" ? "ใส่ Google OAuth Client ID / secret ก่อน" : "ยังไม่ได้ตั้ง META_APP_ID / META_APP_SECRET");
     return NextResponse.redirect(back);
   }
   const state = crypto.randomUUID();

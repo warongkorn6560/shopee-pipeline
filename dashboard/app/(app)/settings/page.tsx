@@ -6,7 +6,7 @@ import { Card, CardHeader, FlowTag, InlineError, PageHeader, Pill, Skeleton, Sta
 import { ClaudeKeyForm, VoiceSample } from "@/components/ai-card";
 import { ChannelEditor } from "@/components/channel-editor";
 import { SettingsTabs } from "@/components/settings-tabs";
-import { ConnectButtons, ConnectResult, MetaSecretForm, TiktokAppForm } from "@/components/social-card";
+import { ConnectButtons, ConnectResult, GoogleAppForm, MetaSecretForm, TiktokAppForm } from "@/components/social-card";
 import { VarField } from "@/components/var-field";
 import { channels } from "@/lib/channels";
 import { requireSession } from "@/lib/dal";
@@ -293,6 +293,7 @@ async function Secrets() {
 const SOCIAL: { id: Provider; name: string; flows: FlowId[]; note: string }[] = [
   { id: "instagram", name: "Instagram", flows: ["shopee", "story"], note: "บัญชี Professional · ระบบต่ออายุ token 60 วันให้เองทุกวัน" },
   { id: "tiktok", name: "TikTok", flows: ["shopee", "story"], note: "แอปที่ยังไม่ผ่าน audit ของ TikTok โพสต์ได้แบบส่วนตัว (เห็นคนเดียว) เท่านั้น" },
+  { id: "youtube", name: "YouTube Shorts", flows: ["story"], note: "อัปโหลดเป็น Shorts · โปรเจกต์ Google ที่ยังไม่ผ่าน audit ของ YouTube อัปโหลดได้แบบส่วนตัวเท่านั้น" },
 ];
 
 async function Social() {
@@ -307,7 +308,7 @@ async function Social() {
     <Card>
       <CardHeader
         eyebrow="กดเชื่อมครั้งเดียว ระบบเก็บ token ลง GitHub Secrets ให้เอง"
-        title="Instagram & TikTok"
+        title="Instagram · TikTok · YouTube"
         action={
           <span className="flex flex-wrap gap-1.5">
             {modes.map(({ flow, auto }) => (
@@ -320,7 +321,7 @@ async function Social() {
       <ul className="mt-3 divide-y divide-line">
         {SOCIAL.map((s) => {
           const acc = data?.ok ? data.value.accounts[s.id] : null;
-          const ready = Boolean(view && (s.id === "tiktok" ? view.tiktokApp : s.id === "instagram" ? view.igApp : view.metaApp));
+          const ready = Boolean(view && (s.id === "youtube" ? view.googleApp : s.id === "tiktok" ? view.tiktokApp : s.id === "instagram" ? view.igApp : view.metaApp));
           return (
             <li key={s.id} className="space-y-2.5 px-5 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -338,6 +339,7 @@ async function Social() {
                 <ConnectButtons provider={s.id} connected={Boolean(acc)} ready={Boolean(ready)} />
               </div>
               {s.id === "tiktok" && !acc && <TiktokAppForm saved={Boolean(view?.tiktokApp)} />}
+              {s.id === "youtube" && !acc && <GoogleAppForm saved={Boolean(view?.googleApp)} />}
             </li>
           );
         })}

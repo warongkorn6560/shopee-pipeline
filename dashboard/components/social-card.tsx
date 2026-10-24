@@ -3,12 +3,12 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Link2, Unlink } from "lucide-react";
-import { disconnectSocial, pickFacebookPages, saveMetaSecret, saveTiktokApp } from "@/app/(app)/actions";
+import { disconnectSocial, pickFacebookPages, saveGoogleApp, saveMetaSecret, saveTiktokApp } from "@/app/(app)/actions";
 import type { Provider } from "@/lib/social";
 import { useToast } from "./toast";
 import { btn, cx } from "./ui";
 
-const NAMES: Record<Provider, string> = { facebook: "เพจ Facebook", instagram: "Instagram", tiktok: "TikTok" };
+const NAMES: Record<Provider, string> = { facebook: "เพจ Facebook", instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube" };
 
 export function ConnectButtons({ provider, connected, ready }: { provider: Provider; connected: boolean; ready: boolean }) {
   const toast = useToast();
@@ -71,6 +71,31 @@ export function TiktokAppForm({ saved }: { saved: boolean }) {
       <div className="text-xs text-ink-3">{saved ? "บันทึกแอป TikTok แล้ว · ใส่ใหม่ถ้าต้องการเปลี่ยน" : "ใส่ Client key / secret จาก developers.tiktok.com ก่อน"}</div>
       <div className="flex flex-wrap gap-2">
         <input name="clientKey" placeholder="Client key" autoComplete="off" spellCheck={false} className={input} />
+        <input name="clientSecret" type="password" placeholder="Client secret" autoComplete="off" spellCheck={false} className={input} />
+        <button type="submit" disabled={pending} className={cx(btn.base, btn.secondary)}>บันทึก</button>
+      </div>
+    </form>
+  );
+}
+
+export function GoogleAppForm({ saved }: { saved: boolean }) {
+  const toast = useToast();
+  const [state, action, pending] = useActionState(saveGoogleApp, null);
+  const ref = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (!state) return;
+    toast(state);
+    if (state.ok) ref.current?.reset();
+  }, [state, toast]);
+  const input = "min-w-0 flex-1 rounded-xl border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink outline-none focus:border-focus";
+  return (
+    <form ref={ref} action={action} className="space-y-2">
+      <div className="text-xs text-ink-3">
+        {saved ? "บันทึก Google OAuth แล้ว · ใส่ใหม่ถ้าต้องการเปลี่ยน" : "ใส่ OAuth Client ID / secret (Web application) ก่อน"} ·{" "}
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline">เปิด Google Cloud → Credentials</a>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <input name="clientId" placeholder="Client ID (…apps.googleusercontent.com)" autoComplete="off" spellCheck={false} className={input} />
         <input name="clientSecret" type="password" placeholder="Client secret" autoComplete="off" spellCheck={false} className={input} />
         <button type="submit" disabled={pending} className={cx(btn.base, btn.secondary)}>บันทึก</button>
       </div>

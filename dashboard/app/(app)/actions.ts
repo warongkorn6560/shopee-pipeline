@@ -312,7 +312,7 @@ export async function logout(): Promise<void> {
 // ---------------------------------------------------------------------------
 // Social accounts
 // ---------------------------------------------------------------------------
-const SOCIAL_LABEL = { facebook: "เพจ Facebook", instagram: "Instagram", tiktok: "TikTok" } as const;
+const SOCIAL_LABEL = { facebook: "เพจ Facebook", instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube" } as const;
 
 export async function disconnectSocial(provider: social.Provider): Promise<ActionResult> {
   await requireSession();
@@ -389,6 +389,22 @@ export async function saveMetaSecret(_: ActionResult | null, form: FormData): Pr
   }
   refresh();
   return { ok: true, message: "บันทึก App secret แล้ว — กดเชื่อมเพจ Facebook ได้เลย" };
+}
+
+export async function saveGoogleApp(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  await requireSession();
+  const id = String(form.get("clientId") ?? "").trim();
+  const secret = String(form.get("clientSecret") ?? "").trim();
+  if (!/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(id) || secret.length < 20) {
+    return { ok: false, message: "Client ID / secret ไม่ถูกรูปแบบ — คัดลอกจาก Google Cloud → APIs & Services → Credentials" };
+  }
+  try {
+    await social.saveGoogleApp(id, secret);
+  } catch (e) {
+    return fail(e, "บันทึกไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: "บันทึก Google OAuth แล้ว — กดเชื่อม YouTube ได้เลย" };
 }
 
 export async function saveTiktokApp(_: ActionResult | null, form: FormData): Promise<ActionResult> {

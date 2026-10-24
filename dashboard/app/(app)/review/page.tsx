@@ -157,7 +157,7 @@ function VideoCard({ v, primaryId }: { v: Video; primaryId: string }) {
   );
 }
 
-const PLATFORM: Record<string, string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok", telegram: "Telegram" };
+const PLATFORM: Record<string, string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube", telegram: "Telegram" };
 
 /** Where an approved video was posted (from post-video.yml's report). */
 function PostStatus({ v }: { v: Video }) {

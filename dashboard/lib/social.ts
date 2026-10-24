@@ -10,8 +10,8 @@ import * as gh from "./github";
 // private Blob doc data/social.json, together with what to show in the UI.
 // Facebook pages are channels (lib/channels.ts): one sign-in can add many pages.
 
-export type Provider = "facebook" | "instagram" | "tiktok";
-export const PROVIDERS: Provider[] = ["facebook", "instagram", "tiktok"];
+export type Provider = "facebook" | "instagram" | "tiktok" | "youtube";
+export const PROVIDERS: Provider[] = ["facebook", "instagram", "tiktok", "youtube"];
 
 const GRAPH = "https://graph.facebook.com/v22.0";
 const IG_GRAPH = "https://graph.instagram.com";
@@ -32,7 +32,11 @@ export interface PendingPage {
 
 interface SocialDoc {
   accounts: Partial<Record<Provider, Account>>;
-  apps?: { tiktok?: { clientKey: string; clientSecret: string }; meta?: { appSecret: string } };
+  apps?: {
+    tiktok?: { clientKey: string; clientSecret: string };
+    meta?: { appSecret: string };
+    google?: { clientId: string; clientSecret: string };
+  };
   pending?: { pages: PendingPage[]; until: number };
 }
 
@@ -60,7 +64,7 @@ export async function connections() {
       return [p, a ? { id: a.id, name: a.name, connectedAt: a.connectedAt, expiresAt: a.expiresAt } : null];
     }),
   ) as Record<Provider, { id: string; name: string; connectedAt: string; expiresAt?: string } | null>;
-  return { accounts: view, tiktokApp: Boolean(tiktokApp(doc)), metaApp: Boolean(metaApp(doc)), igApp: Boolean(igApp()), hasPending: Boolean(doc.pending && doc.pending.until > Date.now()) };
+  return { accounts: view, tiktokApp: Boolean(tiktokApp(doc)), googleApp: Boolean(googleApp(doc)), metaApp: Boolean(metaApp(doc)), igApp: Boolean(igApp()), hasPending: Boolean(doc.pending && doc.pending.until > Date.now()) };
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +90,15 @@ function tiktokApp(doc?: SocialDoc) {
   return key && secret ? { key, secret } : null;
 }
 
+// Google OAuth client (YouTube Data API) for Shorts uploads.
+function googleApp(doc?: SocialDoc) {
+  const id = process.env.GOOGLE_CLIENT_ID || doc?.apps?.google?.clientId;
+  const secret = process.env.GOOGLE_CLIENT_SECRET || doc?.apps?.google?.clientSecret;
+  return id && secret ? { id, secret } : null;
+}
+
 export function appReady(p: Provider, doc?: SocialDoc): boolean {
+  if (p === "youtube") return Boolean(googleApp(doc));
   return Boolean(p === "tiktok" ? tiktokApp(doc) : p === "instagram" ? igApp() : metaApp(doc));
 }
 
@@ -108,6 +120,14 @@ export async function authUrl(p: Provider, origin: string, state: string): Promi
     return `https://www.instagram.com/oauth/authorize?${new URLSearchParams({
       client_id: app.id, redirect_uri, state, response_type: "code",
       scope: "instagram_business_basic,instagram_business_content_publish",
+    })}`;
+  }
+  if (p === "youtube") {
+    const app = googleApp(await readDoc())!;
+    return `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
+      client_id: app.id, redirect_uri, state, response_type: "code",
+      scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
+      access_type: "offline", prompt: "consent", include_granted_scopes: "true",
     })}`;
   }
   const app = tiktokApp(await readDoc())!;
@@ -195,6 +215,30 @@ export async function completeConnect(p: Provider, code: string, origin: string)
     return { done: true, name: `@${me.username}` };
   }
 
+  if (p === "youtube") {
+    const app = googleApp(doc)!;
+    const tok = await json<{ access_token: string; refresh_token?: string }>(await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      body: new URLSearchParams({ client_id: app.id, client_secret: app.secret, code, grant_type: "authorization_code", redirect_uri }),
+    }), "แลก code ไม่สำเร็จ");
+    if (!tok.refresh_token) throw new Error("Google ไม่ส่ง refresh token — ลบสิทธิ์แอปที่ myaccount.google.com/permissions แล้วกดเชื่อมใหม่");
+    const ch = await json<{ items?: { id: string; snippet: { title: string } }[] }>(await fetch(
+      "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
+      { headers: { Authorization: `Bearer ${tok.access_token}` } },
+    ), "อ่านช่อง YouTube ไม่สำเร็จ");
+    const channel = ch.items?.[0];
+    if (!channel) throw new Error("บัญชี Google นี้ยังไม่มีช่อง YouTube");
+    await gh.setSecret("YOUTUBE_REFRESH_TOKEN", tok.refresh_token);
+    if (!process.env.GOOGLE_CLIENT_ID && doc.apps?.google) {
+      // The pipeline refreshes with the same OAuth client the token was issued to.
+      await gh.setSecret("YOUTUBE_CLIENT_ID", doc.apps.google.clientId);
+      await gh.setSecret("YOUTUBE_CLIENT_SECRET", doc.apps.google.clientSecret);
+    }
+    doc.accounts.youtube = { id: channel.id, name: channel.snippet.title, connectedAt: now };
+    await writeDoc(doc);
+    return { done: true, name: channel.snippet.title };
+  }
+
   const app = tiktokApp(doc)!;
   const tok = await json<{ access_token: string; refresh_token: string; refresh_expires_in: number; open_id: string }>(
     await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
@@ -239,6 +283,7 @@ const SECRET_NAMES: Record<Provider, string[]> = {
   facebook: ["FACEBOOK_PAGE_ID", "FACEBOOK_PAGE_TOKEN"],
   instagram: ["INSTAGRAM_ACCESS_TOKEN"],
   tiktok: ["TIKTOK_REFRESH_TOKEN"],
+  youtube: ["YOUTUBE_REFRESH_TOKEN"],
 };
 
 export async function disconnect(p: Provider): Promise<void> {
@@ -252,6 +297,11 @@ export async function disconnect(p: Provider): Promise<void> {
 export async function saveMetaSecret(appSecret: string): Promise<void> {
   const doc = await readDoc();
   await writeDoc({ ...doc, apps: { ...doc.apps, meta: { appSecret } } });
+}
+
+export async function saveGoogleApp(clientId: string, clientSecret: string): Promise<void> {
+  const doc = await readDoc();
+  await writeDoc({ ...doc, apps: { ...doc.apps, google: { clientId, clientSecret } } });
 }
 
 export async function saveTiktokApp(clientKey: string, clientSecret: string): Promise<void> {
