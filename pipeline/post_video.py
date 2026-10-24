@@ -38,7 +38,7 @@ def main(video_id: str) -> int:
             res["facebook"] = _safe(facebook.publish_reel, mp4, caption)
         if v.get("primary", True):
             res["tiktok"] = _safe(tiktok.publish, mp4, caption[:2000])
-            res["instagram"] = _safe(instagram.publish, mp4, caption[:2000])
+            res["instagram"] = _safe(instagram.publish, mp4, caption[:2000], v["url"])
     print(f"  publish: {res}")
     hub._call("video-posted", {"id": video_id, "published": res, "posted": posted_somewhere(res)})
     return 0 if posted_somewhere(res) else 1

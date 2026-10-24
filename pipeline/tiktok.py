@@ -66,9 +66,11 @@ def refresh_token(refresh_tok: str) -> str:
         "refresh_token": refresh_tok,
     }, timeout=30)
     data = r.json()
-    if "data" not in data or "access_token" not in data.get("data", {}):
-        raise RuntimeError(f"TikTok token refresh failed: {data}")
-    return data["data"]["access_token"]
+    data = data.get("data", data)  # v2 returns the tokens at the top level
+    if "access_token" not in data:
+        # never echo the response: it can carry tokens, and Actions logs of this repo are public
+        raise RuntimeError(f"TikTok token refresh failed: {data.get('error') or data.get('message') or r.status_code}")
+    return data["access_token"]
 
 
 def _privacy(headers: dict) -> str:

@@ -148,17 +148,23 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
 
         up = hub.upload_video("story", final)
         print(f"  review: {up['reviewUrl']}")
-        res = publish_story(final, f"{review}\n\n▶️ ตรวจในเว็บ: {up['reviewUrl']}", social)
-        print(f"  publish: {res}")
-        posted = posted_somewhere(res)
-        hub.register_video(
+        video = dict(
             videoId=up["videoId"], flow="story", refId=topic.ref or "", title=plan.title,
             pathname=up["pathname"], size=final.stat().st_size, caption=social,
             reviewText=plan.narration, sources=plan.sources, runUrl=run_url(),
-            published=res, status="posted" if posted else "review",
             cost={**llm.USAGE, "ttsChars": len(plan.spoken)},
             channelId=STORY_CHANNEL_ID,
         )
+        hub.register_video(**video, status="review")
+        # Instagram fetches the video from a URL: hand it a short-lived link to our own copy.
+        try:
+            public_url = hub._call("video", {"id": up["videoId"]}).get("url", "")
+        except hub.PlatformError:
+            public_url = ""
+        res = publish_story(final, f"{review}\n\n▶️ ตรวจในเว็บ: {up['reviewUrl']}", social, video_url=public_url)
+        print(f"  publish: {res}")
+        posted = posted_somewhere(res)
+        hub.register_video(**video, published=res, status="posted" if posted else "review")
         topics.update(topic.ref, status=topics.POSTED if posted else topics.DONE, title=plan.title,
                       published=_summary(res), videoId=up["videoId"])
         _log_spend(plan.title, images.ai_images_used(list(photos.values())) * STORY_IMAGE_PRICE_USD, str(final), flow="story")
