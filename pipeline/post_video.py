@@ -17,14 +17,14 @@ from pathlib import Path
 
 import requests
 
-from . import facebook, hub, instagram, tiktok
+from . import facebook, hub, instagram, tiktok, youtube
 from .publish import _safe
 from .run import posted_somewhere
 
 
 def main(video_id: str, only: str = "") -> int:
     """`only`: comma list of platforms to (re)try, e.g. "instagram,tiktok"; empty = all."""
-    want = {p.strip() for p in only.split(",") if p.strip()} or {"facebook", "instagram", "tiktok"}
+    want = {p.strip() for p in only.split(",") if p.strip()} or {"facebook", "instagram", "tiktok", "youtube"}
     v = hub._call("video", {"id": video_id})
     print(f"▶ Posting {video_id}: {v.get('title', '')} → {v.get('channelName') or 'primary page'}")
     caption = v.get("caption", "")
@@ -44,6 +44,8 @@ def main(video_id: str, only: str = "") -> int:
                 res["tiktok"] = _safe(tiktok.publish, mp4, caption[:2000])
             if "instagram" in want:
                 res["instagram"] = _safe(instagram.publish, mp4, caption[:2000], v["url"])
+            if "youtube" in want:
+                res["youtube"] = _safe(youtube.publish, mp4, v.get("title", ""), caption)
     print(f"  publish: {res}")
     hub._call("video-posted", {"id": video_id, "published": res, "posted": posted_somewhere(res)})
     return 0 if posted_somewhere(res) else 1
@@ -51,5 +53,5 @@ def main(video_id: str, only: str = "") -> int:
 
 if __name__ == "__main__":
     if len(sys.argv) not in (2, 3):
-        sys.exit("usage: python -m pipeline.post_video <videoId> [facebook,instagram,tiktok]")
+        sys.exit("usage: python -m pipeline.post_video <videoId> [facebook,instagram,tiktok,youtube]")
     sys.exit(main(*sys.argv[1:]))

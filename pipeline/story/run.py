@@ -165,7 +165,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         except hub.PlatformError:
             public_url = ""
         res = publish_story(final, f"{review}\n\n▶️ ตรวจในเว็บ: {up['reviewUrl']}", social, video_url=public_url,
-                            video_id=up["videoId"])
+                            video_id=up["videoId"], title=plan.title)
         print(f"  publish: {res}")
         posted = posted_somewhere(res)
         hub.register_video(**video, published=res, status="posted" if posted else "review")

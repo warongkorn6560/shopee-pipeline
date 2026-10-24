@@ -122,7 +122,7 @@ def publish(video: Path, plan, product, mode: str | None = None, review_url: str
 # Flow B — storytelling
 # ---------------------------------------------------------------------------
 def publish_story(video: Path, review_text: str, social_caption: str,
-                  mode: str | None = None, video_url: str = "", video_id: str = "") -> dict:
+                  mode: str | None = None, video_url: str = "", video_id: str = "", title: str = "") -> dict:
     mode = mode or PUBLISH_MODE
     buttons = review_buttons(video_id) if video_id and mode != "auto" else ""
     result: dict = {"telegram": telegram_send_video(video, review_text, buttons)}
@@ -143,4 +143,6 @@ def publish_story(video: Path, review_text: str, social_caption: str,
         if STORY_CHANNEL_PRIMARY:  # the single TikTok/Instagram account follows the primary page
             result["tiktok"] = _safe(_tiktok.publish, video, social_caption[:2000])
             result["instagram"] = _safe(_ig.publish, video, social_caption[:2000], video_url)
+            from . import youtube as _yt
+            result["youtube"] = _safe(_yt.publish, video, title or social_caption.split("\n")[0], social_caption)
     return result

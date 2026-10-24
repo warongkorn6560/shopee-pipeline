@@ -123,6 +123,9 @@ jobs:
           TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
           TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
           # review = dashboard review page + Telegram (safe default). auto = also post to Facebook/TikTok/IG.
           PUBLISH_MODE: ${{ inputs.preview && 'review' || matrix.mode || vars.STORY_PUBLISH_MODE || 'review' }}
           STORY_CHANNEL_ID: ${{ matrix.id }}
