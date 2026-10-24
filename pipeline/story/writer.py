@@ -197,9 +197,12 @@ FIELDS PER BEAT
 - card_subtitle: max 34 characters.
 - card_fact: max 34 characters, one number fact, or "".
 - shot — choose the visual that best proves the sentence:
-  "photo": a real wildlife/nature photo. Set photo_query to 2-5 ENGLISH Wikimedia Commons keywords
-     naming the species or place exactly (e.g. "Asian elephant Khao Yai", "Dugong", "Great hornbill",
-     "Siamese crocodile", "Huai Kha Khaeng"). About half the beats or more.
+  "photo": a real photo of the animal/place itself that shows what the sentence says (the animal
+     feeding, its size next to something, its habitat). Set photo_query to the SCIENTIFIC name plus
+     1-3 English words for what the photo should show (e.g. "Dugong dugon feeding seagrass",
+     "Panthera tigris corbetti", "Buceros bicornis flying", "Khao Yai National Park forest").
+     Never ask for statues, drawings or maps here. About half the beats or more, and no two beats with
+     the same query.
   "map": where it lives — fill focus/labels/spans as below. 1-3 per video.
   "year": an animated year card only for a key date (e.g. when it was protected or rediscovered):
      year = Buddhist-era year as a number, card_title = the date text. 0-1 per video.

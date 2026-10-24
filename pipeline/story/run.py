@@ -14,13 +14,14 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import random
 import traceback
 
 from .. import hub, llm, voiceover
 from ..config import (
     STORY_CHANNEL_ID,
     COST_CAP_USD, OUTPUT_DIR, PUBLISH_MODE, STORY_AUTO_TOPIC, STORY_IMAGE_PRICE_USD,
-    STORY_MAX_AI_IMAGES, STORY_SERIES_NAME, STORY_VOICE_ID, WORK_DIR,
+    STORY_MAX_AI_IMAGES, STORY_SERIES_NAME, STORY_VOICE_ID, THAI_VOICES, WORK_DIR,
 )
 from ..publish import publish_story
 from ..run import _log_spend, _silent_voice, _slug, posted_somewhere, run_url
@@ -128,7 +129,9 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
             left = voiceover.remaining_characters()
             if left is not None and left < len(plan.spoken):
                 raise RuntimeError(f"ElevenLabs quota too low ({left} chars left, need {len(plan.spoken)}).")
-            voice, alignment = voiceover.synthesize_with_timestamps(" ".join(texts), voice, STORY_VOICE_ID)
+            narrator = random.choice(list(THAI_VOICES)) if STORY_VOICE_ID == "random" else STORY_VOICE_ID
+            print(f"  narrator: {THAI_VOICES.get(narrator, narrator)}")
+            voice, alignment = voiceover.synthesize_with_timestamps(" ".join(texts), voice, narrator)
         audio_len = voiceover.audio_duration(voice)
         durs = scene_durations(texts, alignment, audio_len)
         print(f"  narration {audio_len:.1f}s → beats {[round(d, 1) for d in durs]}")

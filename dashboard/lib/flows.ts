@@ -238,12 +238,14 @@ export const VARIABLES: VarDef[] = [
   },
   {
     name: "STORY_VOICE_ID", label: "เสียงผู้บรรยาย", scope: "story", kind: "select",
-    workflowDefault: "jucSqawHKM1rUNf78oZQ",
-    help: "เสียงคนไทยจาก ElevenLabs Voice Library (โมเดล eleven_v4) — กดฟังตัวอย่างได้ที่การ์ด AI & เสียง",
+    workflowDefault: "random",
+    help: "เสียงคนไทยจาก ElevenLabs Voice Library (โมเดล eleven_v4) · สุ่ม = เปลี่ยนผู้บรรยายชาย/หญิงทุกคลิป",
     options: [
-      { value: "jucSqawHKM1rUNf78oZQ", label: "Duang — ผู้ชาย เล่าเรื่องเสียงทุ้ม", hint: "แนะนำ" },
+      { value: "random", label: "สุ่มทุกคลิป — ชายบ้าง หญิงบ้าง", hint: "แนะนำ" },
+      { value: "jucSqawHKM1rUNf78oZQ", label: "Duang — ผู้ชาย เล่าเรื่องเสียงทุ้ม" },
       { value: "7XW5JhaNn90bnFojQ5DA", label: "Mali — ผู้หญิง ชัด เป็นธรรมชาติ" },
       { value: "yq05eeRaHPMGuWTVpqeP", label: "Tonce — ผู้ชาย เป็นกันเอง" },
+      { value: "MYZYcGOqrkYQcwDunXl7", label: "Hammy — ผู้หญิง อบอุ่น เป็นกันเอง" },
     ],
   },
   {

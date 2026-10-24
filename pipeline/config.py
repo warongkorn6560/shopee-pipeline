@@ -94,6 +94,7 @@ THAI_VOICES = {
     "jucSqawHKM1rUNf78oZQ": "Duang — ผู้ชาย เล่าเรื่องเสียงทุ้ม",
     "7XW5JhaNn90bnFojQ5DA": "Mali — ผู้หญิง ชัด เป็นธรรมชาติ",
     "yq05eeRaHPMGuWTVpqeP": "Tonce — ผู้ชาย เป็นกันเอง",
+    "MYZYcGOqrkYQcwDunXl7": "Hammy — ผู้หญิง อบอุ่น เป็นกันเอง",
 }
 SHOP_VOICE_ID = _get("SHOP_VOICE_ID", "7XW5JhaNn90bnFojQ5DA")   # Mali
 ELEVENLABS_VOICE_ID = SHOP_VOICE_ID
@@ -193,7 +194,7 @@ STORY_IMAGE_MODEL = _get("STORY_IMAGE_MODEL", "google/gemini-2.5-flash-image")
 STORY_IMAGE_PRICE_USD = 0.039
 STORY_MAX_AI_IMAGES = int(_get("STORY_MAX_AI_IMAGES", "4"))
 STORY_AUTO_TOPIC = _get("STORY_AUTO_TOPIC", "on").lower() in ("1", "on", "true", "yes")
-STORY_VOICE_ID = _get("STORY_VOICE_ID", "jucSqawHKM1rUNf78oZQ")   # Duang
+STORY_VOICE_ID = _get("STORY_VOICE_ID", "random")   # "random" = a different Thai narrator (male/female) each video
 STORY_TARGET_SECONDS = int(_get("STORY_TARGET_SECONDS", "75"))
 # Stronger than the Flow A default at factual Thai writing; still allowed on the
 # AI Gateway free tier (billed against its free monthly credit, ~$0.005/story).

@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from ..captions import _clean, _clusters, _wrap_ex
 from ..config import (
@@ -249,7 +249,8 @@ def resolve_geography(plan) -> tuple[list[GeoBeat], tuple[float, float, float, f
             feat = None if kind == "place" else maps.fetch_feature(name, kind, search)
             if feat:
                 ov.lines = [np.array(x) for x in feat.lines]
-                ov.polygons = [np.array(x) for x in feat.polygons]
+                # OSM boundaries run out to sea; keep only the land part (marine parks stay whole)
+                ov.polygons = [np.array(x) for x in maps.clip_to_land(feat.polygons)]
                 if style == "pin" or (style == "area" and not ov.polygons):
                     lon0, lat0, lon1, lat1 = feat.bbox()
                     ov.point = ((lon0 + lon1) / 2, (lat0 + lat1) / 2)
@@ -372,6 +373,8 @@ def _render_map_overlays(flat: Image.Image, to_flat, beat: GeoBeat, t: float,
     for ov in context:  # earlier beats' main lines stay as faint context
         for ln in ov.lines:
             _draw_lines(d, to_flat(ln), CYAN, 1.0, 0.45)
+    areas = Image.new("RGBA", (FW, FH))
+    da = ImageDraw.Draw(areas)
     for k, ov in enumerate(beat.overlays):
         color = CYAN if ov.primary else RED_LINE
         if ov.style == "area" and ov.polygons:
@@ -379,19 +382,55 @@ def _render_map_overlays(flat: Image.Image, to_flat, beat: GeoBeat, t: float,
             for poly in ov.polygons:
                 xy = [tuple(p) for p in to_flat(poly)]
                 if len(xy) > 2:
-                    d.polygon(xy, fill=AREA + (int(105 * alpha),), outline=AREA + (int(255 * alpha),), width=5)
+                    da.polygon(xy, fill=AREA + (int(105 * alpha),), outline=AREA + (int(255 * alpha),), width=5)
         elif ov.style == "line":
             reveal = _ease((t - 0.08 - 0.1 * k) / 0.55)
             for ln in ov.lines:
                 _draw_lines(d, to_flat(ln), color, reveal, 1.0)
     out = flat.convert("RGBA")
+    out.alpha_composite(areas)
     out.alpha_composite(layer)
     return out
+
 
 
 # ---------------------------------------------------------------------------
 # Archival look + year cards
 # ---------------------------------------------------------------------------
+def _story_photo(src) -> Image.Image:
+    """Photo as large as the screen allows: full-bleed 9:16 when that crops at most 30% of the width,
+    otherwise full width with at most 18% trimmed off the sides, on a blurred copy of itself."""
+    from PIL import ImageEnhance
+    img = Image.open(src).convert("RGB")
+    a = img.width / img.height
+    target = W / H
+    if a <= target / 0.7:                       # portrait-ish: cover the whole frame
+        if a > target:
+            cw = img.height * target
+            img = img.crop(((img.width - cw) / 2, 0, (img.width + cw) / 2, img.height))
+        else:
+            ch = img.width / target
+            top = max(0, (img.height - ch) * 0.35)
+            img = img.crop((0, top, img.width, top + ch))
+        return img.resize((W, H), Image.LANCZOS)
+    keep = max(0.82, min(1.0, (W / (H * 0.62)) / a))  # aim for ~62% of the screen height, trim ≤18%
+    cw = img.width * keep
+    img = img.crop(((img.width - cw) / 2, 0, (img.width + cw) / 2, img.height))
+    fh = int(W / (img.width / img.height))
+    fg = img.resize((W, fh), Image.LANCZOS)
+    bg = img.resize((W // 8, H // 8)).filter(ImageFilter.GaussianBlur(4)).resize((W, H), Image.BILINEAR)
+    bg = ImageEnhance.Brightness(bg).enhance(0.45)
+    y = int(H * 0.46 - fh / 2)
+    mask = Image.new("L", (W, fh), 255)
+    feather = 60                                 # soft top/bottom edges instead of a hard card
+    for k in range(feather):
+        v = int(255 * k / feather)
+        ImageDraw.Draw(mask).line([(0, k), (W, k)], fill=v)
+        ImageDraw.Draw(mask).line([(0, fh - 1 - k), (W, fh - 1 - k)], fill=v)
+    bg.paste(fg, (0, y), mask)
+    return bg
+
+
 def _vignette() -> Image.Image:
     yy, xx = np.mgrid[0:H, 0:W]
     d = np.sqrt(((xx - W / 2) / (W / 2)) ** 2 + ((yy - H / 2) / (H / 2)) ** 2)
@@ -533,8 +572,6 @@ _GRADIENTS = _gradients()
 def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: str,
            photo_images: dict[int, object] | None = None) -> Path:
     """Render the whole story; returns the final MP4 path."""
-    from ..frames import prepare_frame
-
     run_dir.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     geo, region = resolve_geography(plan)
@@ -570,7 +607,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
         print(f"    [render] beat {i + 1}/{len(plan.scenes)} {sc.visual if kind == 'card' else kind} {d:.1f}s")
 
         if kind == "card":
-            bg_photo = last_photo or next((Image.open(prepare_frame(photo_images[j].path, run_dir / f"photo_{j}.jpg")).convert("RGB")
+            bg_photo = last_photo or next((_story_photo(photo_images[j].path)
                                            for j in range(i + 1, len(plan.scenes)) if j in photo_images), None)
             bg = _year_background(bg_photo)
             y_to = float(sc.year or 0) if sc.visual == "year" else 0.0
@@ -596,7 +633,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
 
         if is_photo:
             img = photo_images[i]
-            framed = Image.open(prepare_frame(img.path, run_dir / f"photo_{i}.jpg")).convert("RGB")
+            framed = _story_photo(img.path)
             last_photo = framed
             credit = _text_block(img.credit, FONT_PATH, 22, (255, 255, 255, 190), max_w=1000,
                                  max_lines=1, min_size=16)

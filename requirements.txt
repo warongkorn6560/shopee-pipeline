@@ -4,4 +4,4 @@ openai>=1.40        # used for Vercel AI Gateway (OpenAI-compatible endpoint)
 anthropic>=1.17,<2  # Claude writes scripts and shot lists when ANTHROPIC_API_KEY is set
 numpy>=1.26         # map camera perspective math
 Pillow>=10.3
-
+shapely>=2.0        # clip map areas to the coastline

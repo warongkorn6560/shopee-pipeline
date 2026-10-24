@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 
 import requests
 
-from ..config import WORK_DIR
+from ..config import ASSETS, WORK_DIR
 
 UA = "ShopeePipelineStoryBot/1.0 (https://github.com/warongkorn6560/shopee-pipeline)"
 TILE_LAYER = "s2cloudless_3857"
@@ -258,3 +258,42 @@ def fetch_feature(name: str, kind: str, bbox: tuple[float, float, float, float])
                 open_ways.extend(outer)
     feat.lines = _join_ways(open_ways)
     return feat if feat.points else None
+
+
+# ---------------------------------------------------------------------------
+# Coastline clipping: OSM admin boundaries include territorial sea, so a coastal
+# province or country drawn as-is spills offshore in straight lines.
+# ---------------------------------------------------------------------------
+_LAND = None
+
+
+def _land():
+    global _LAND
+    if _LAND is None:
+        from shapely.geometry import shape
+        from shapely.prepared import prep
+        geom = shape(json.loads((ASSETS / "geo" / "land_sea.geojson").read_text())["geometry"])
+        _LAND = (geom, prep(geom))
+    return _LAND
+
+
+def clip_to_land(polygons: list[list[tuple[float, float]]]) -> list[list[tuple[float, float]]]:
+    """Exterior rings of the polygons' land part; unchanged when they are mostly sea (marine
+    parks) or the land data is unavailable."""
+    try:
+        from shapely.geometry import MultiPolygon, Polygon
+        from shapely.ops import unary_union
+        geom, prepared = _land()
+        shapes = [Polygon(p).buffer(0) for p in polygons if len(p) > 3]
+        area = unary_union(shapes)
+        if area.is_empty or not prepared.intersects(area):
+            return polygons
+        clipped = area.intersection(geom)
+        if clipped.area < 0.35 * area.area:
+            return polygons
+        parts = clipped.geoms if isinstance(clipped, MultiPolygon) else [clipped]
+        return [list(p.exterior.coords) for p in parts
+                if isinstance(p, Polygon) and p.area > 0.002 * clipped.area]
+    except Exception as e:  # noqa: BLE001 — clipping is cosmetic, never fail the render
+        print(f"    [geo] land clip skipped: {e}")
+        return polygons

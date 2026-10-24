@@ -73,7 +73,8 @@ def _relevant(title: str, query: str) -> bool:
     return not kws or any(k in t or k.rstrip("s") in t for k in kws)
 
 
-_NOT_PHOTO = re.compile(r"\b(map|locator|location|results?|chart|diagram|flag|logo|seal)\b|\.svg$", re.I)
+_NOT_PHOTO = re.compile(r"\b(map|locator|location|results?|chart|diagram|flag|logo|seal|statue|fountain|stamp|"
+                        r"coin|illustration|drawing|painting|skeleton)\b|\.svg$", re.I)
 
 
 def _commons_search(query: str, used: set[int], lock: threading.Lock,
@@ -86,8 +87,13 @@ def _commons_search(query: str, used: set[int], lock: threading.Lock,
     }
     r = requests.get(COMMONS_API, params=params, headers={"User-Agent": UA}, timeout=30)
     r.raise_for_status()
-    pages = sorted((r.json().get("query", {}).get("pages", {}) or {}).values(),
-                   key=lambda p: p.get("index", 99))
+    kws = _keywords(query)
+
+    def score(p):  # most query words in the file title first, then Commons' own ranking
+        t = p.get("title", "").lower()
+        return (-sum(1 for k in kws if k in t or k.rstrip("s") in t), p.get("index", 99))
+
+    pages = sorted((r.json().get("query", {}).get("pages", {}) or {}).values(), key=score)
     for p in pages:
         if not _relevant(p.get("title", ""), query):
             continue
