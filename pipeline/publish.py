@@ -10,6 +10,7 @@ Shopee Video upload has NO API — that step is always manual (≈30s in the app
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import requests
@@ -23,13 +24,22 @@ def _telegram(method: str) -> str:
     return f"https://api.telegram.org/bot{ENV['TELEGRAM_BOT_TOKEN']}/{method}"
 
 
-def telegram_send_video(video: Path, text: str) -> bool:
+def review_buttons(video_id: str) -> str:
+    """Inline approve/reject buttons; the dashboard's Telegram webhook handles the callbacks."""
+    return json.dumps({"inline_keyboard": [[
+        {"text": "✅ อนุมัติและโพสต์", "callback_data": f"ap:{video_id}"},
+        {"text": "❌ ไม่ผ่าน", "callback_data": f"rj:{video_id}"},
+    ]]})
+
+
+def telegram_send_video(video: Path, text: str, reply_markup: str = "") -> bool:
     """Send a video with caption; long text follows as a separate message."""
     chat = ENV["TELEGRAM_CHAT_ID"]
     with video.open("rb") as f:
         r = requests.post(
             _telegram("sendVideo"),
-            data={"chat_id": chat, "caption": text[:_TG_CAPTION_LIMIT], "supports_streaming": "true"},
+            data={"chat_id": chat, "caption": text[:_TG_CAPTION_LIMIT], "supports_streaming": "true",
+                  **({"reply_markup": reply_markup} if reply_markup else {})},
             files={"video": (video.name, f, "video/mp4")},
             timeout=300,
         )
@@ -112,9 +122,10 @@ def publish(video: Path, plan, product, mode: str | None = None, review_url: str
 # Flow B — storytelling
 # ---------------------------------------------------------------------------
 def publish_story(video: Path, review_text: str, social_caption: str,
-                  mode: str | None = None, video_url: str = "") -> dict:
+                  mode: str | None = None, video_url: str = "", video_id: str = "") -> dict:
     mode = mode or PUBLISH_MODE
-    result: dict = {"telegram": telegram_send_video(video, review_text)}
+    buttons = review_buttons(video_id) if video_id and mode != "auto" else ""
+    result: dict = {"telegram": telegram_send_video(video, review_text, buttons)}
     if mode == "auto":
         from . import facebook as _fb
         from . import instagram as _ig
