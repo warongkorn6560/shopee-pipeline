@@ -619,7 +619,11 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
         span1 = float(sc.span_end_km)
         if g.extent_km and span1 < g.extent_km * 0.35:
             span1 = max(span1, g.extent_km * 0.35)  # keep the subject on screen
-        if cam_lon is None or prev_kind == "photo":
+        # Fly on from the previous map shot only when the new target is close by; a long hop
+        # (Trang → Chanthaburi) would need a mosaic too big to build, so cut to the new place.
+        far = cam_lon is not None and math.hypot((target[0] - cam_lon) * 111 * math.cos(math.radians(lat_ref)),
+                                                 (target[1] - cam_lat) * 111) > 1.5 * max(cam_span, span1)
+        if cam_lon is None or prev_kind != "map" or far:
             start = (target[0], target[1], float(sc.span_start_km))
         else:
             start = (cam_lon, cam_lat, cam_span)
