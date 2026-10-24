@@ -40,12 +40,13 @@ export async function runWorkflow(file: string, topic?: string): Promise<ActionR
 }
 
 /** Burst: make `count` story videos back to back (story-video.yml runs them one at a time). */
-export async function runStoryBurst(count: number, preview: boolean): Promise<ActionResult> {
+export async function runStoryBurst(count: number, preview: boolean, style = ""): Promise<ActionResult> {
   await requireSession();
   const n = Math.round(Number(count));
   if (!Number.isFinite(n) || n < 1 || n > 60) return { ok: false, message: "จำนวนคลิปต้องอยู่ระหว่าง 1–60" };
   try {
-    await gh.dispatch("story-video.yml", { count: String(n), preview: String(preview) });
+    const pick = ["classic", "reaction"].includes(style) ? style : "";
+    await gh.dispatch("story-video.yml", { count: String(n), preview: String(preview), ...(pick ? { style: pick } : {}) });
   } catch (e) {
     return fail(e, "สั่งรัวคลิปไม่สำเร็จ");
   }

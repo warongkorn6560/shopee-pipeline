@@ -113,6 +113,7 @@ export function BurstButton({ autoMode, pages }: { autoMode: boolean; pages: num
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(10);
   const [preview, setPreview] = useState(false);
+  const [style, setStyle] = useState("");
   const { pending, run } = useAction();
   const clips = count * Math.max(pages, 1);
   return (
@@ -132,6 +133,15 @@ export function BurstButton({ autoMode, pages }: { autoMode: boolean; pages: num
             <input type="checkbox" checked={preview} onChange={(e) => setPreview(e.target.checked)} className="size-4 accent-ink" />
             ตัวอย่างเท่านั้น — ส่งเข้าหน้ารีวิว + Telegram ไม่โพสต์
           </label>
+          <label className="block space-y-1.5" htmlFor="burst-style">
+            <span className="text-ink-2">สไตล์การตัดต่อ</span>
+            <select id="burst-style" value={style} onChange={(e) => setStyle(e.target.value)}
+              className="w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-sm outline-none focus:border-focus">
+              <option value="">สุ่มตามสัดส่วนที่ตั้งไว้</option>
+              <option value="classic">แบบเดิม (classic)</option>
+              <option value="reaction">reaction — ตัวละคร + ป้ายเด้ง</option>
+            </select>
+          </label>
           <p className="text-ink-2">
             ทำทีละคลิปต่อกัน รวม {clips} คลิป · ประมาณ {Math.ceil((clips * 17) / 60)} ชั่วโมง · ใช้ Claude ราว ${(clips * 0.45).toFixed(0)}
           </p>
@@ -143,7 +153,7 @@ export function BurstButton({ autoMode, pages }: { autoMode: boolean; pages: num
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" onClick={() => setOpen(false)} className={cx(btn.base, btn.ghost)}>ยกเลิก</button>
-          <button type="button" disabled={pending} onClick={() => run(() => runStoryBurst(count, preview), () => setOpen(false))} className={cx(btn.base, btn.primary)}>
+          <button type="button" disabled={pending} onClick={() => run(() => runStoryBurst(count, preview, style), () => setOpen(false))} className={cx(btn.base, btn.primary)}>
             <Layers className="size-4" /> เริ่มรัว {clips} คลิป
           </button>
         </div>
