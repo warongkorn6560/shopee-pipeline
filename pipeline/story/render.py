@@ -574,7 +574,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
                                            for j in range(i + 1, len(plan.scenes)) if j in photo_images), None)
             bg = _year_background(bg_photo)
             y_to = float(sc.year or 0) if sc.visual == "year" else 0.0
-            y_from = last_year if 0 < last_year < y_to else y_to - 12
+            y_from = y_to if last_year == y_to else (last_year if 0 < last_year < y_to else y_to - 12)
             for f in range(n):
                 sub = subs[min(int(np.searchsorted(bounds, f, side="right")), len(subs) - 1)]
                 if y_to:

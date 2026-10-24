@@ -73,7 +73,11 @@ def _relevant(title: str, query: str) -> bool:
     return not kws or any(k in t or k.rstrip("s") in t for k in kws)
 
 
-def _commons_search(query: str, used: set[int], lock: threading.Lock) -> tuple[str, str] | None:
+_NOT_PHOTO = re.compile(r"\b(map|locator|location|results?|chart|diagram|flag|logo|seal)\b|\.svg$", re.I)
+
+
+def _commons_search(query: str, used: set[int], lock: threading.Lock,
+                    photo: bool = False) -> tuple[str, str] | None:
     params = {
         "action": "query", "format": "json", "generator": "search", "gsrnamespace": 6,
         "gsrsearch": query, "gsrlimit": 12, "prop": "imageinfo",
@@ -87,6 +91,8 @@ def _commons_search(query: str, used: set[int], lock: threading.Lock) -> tuple[s
     for p in pages:
         if not _relevant(p.get("title", ""), query):
             continue
+        if photo and _NOT_PHOTO.search(p.get("title", "")):
+            continue  # a "photo" beat must show a real photograph, not a map or results chart
         info = (p.get("imageinfo") or [{}])[0]
         meta = info.get("extmetadata", {})
         lic = meta.get("LicenseShortName", {}).get("value", "")
@@ -116,7 +122,7 @@ def _wikimedia(query: str, visual: str, out: Path, used: set[int], lock) -> Scen
         attempts.append(" ".join(words[:2]))
     for q in attempts:
         try:
-            hit = _commons_search(q, used, lock)
+            hit = _commons_search(q, used, lock, photo=visual == "photo")
         except requests.RequestException as e:
             print(f"    [img] commons search failed ({e.__class__.__name__}); skipping")
             return None
