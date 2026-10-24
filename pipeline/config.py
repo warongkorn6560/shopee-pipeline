@@ -45,7 +45,7 @@ _ENV_KEYS = (
     "STORY_AUTO_TOPIC", "STORY_VOICE_ID", "STORY_LLM_MODEL", "STORY_MAX_AI_IMAGES",
     "GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
     "DASHBOARD_URL", "PIPELINE_API_KEY",
-    "CLAUDE_MODEL", "CLAUDE_EFFORT", "TTS_MODEL", "SHOP_VOICE_ID", "STORY_TARGET_SECONDS",
+    "CLAUDE_MODEL", "CLAUDE_EFFORT", "TTS_MODEL", "SHOP_VOICE_ID", "STORY_TARGET_SECONDS", "STORY_MUSIC",
 )
 
 
@@ -164,11 +164,13 @@ STATUS_FAILED = "Failed"
 # ---------------------------------------------------------------------------
 # Flow B — storytelling / edutainment
 # ---------------------------------------------------------------------------
-STORY_SERIES_NAME = _get("STORY_SERIES_NAME", "เรื่องเล่าจากแผนที่")
+STORY_SERIES_NAME = _get("STORY_SERIES_NAME", "ย้อนรอยการเมืองไทย")
 STORY_NICHE = _get(
     "STORY_NICHE",
-    "เล่าเรื่องสถานที่ในประเทศไทยผ่านแผนที่ดาวเทียม: คลอง แม่น้ำ ถนน รถไฟ อำเภอ ชื่อบ้านนามเมือง และเมกะโปรเจกต์ ที่คนไทยรู้จักและอยากคอมเมนต์",
+    "เล่าประวัติศาสตร์การเมืองไทยแบบเป็นกลาง: การเปลี่ยนแปลงการปกครอง รัฐธรรมนูญ การเลือกตั้ง นายกรัฐมนตรี "
+    "รัฐสภา พรรคการเมือง และเหตุการณ์สำคัญที่ผ่านมาแล้วอย่างน้อย 15 ปี ด้วยภาพเอกสารจริง ไทม์ไลน์ และแผนที่",
 )
+STORY_MUSIC = _get("STORY_MUSIC", "politics_bed.mp3")   # file in assets/music/story
 # auto      : AI illustration for "scene" visuals when available, real Wikimedia
 #             Commons images for maps/photos, designed text cards as last resort
 # wikimedia : Wikimedia Commons only (+ cards)

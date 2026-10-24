@@ -59,9 +59,9 @@ export const FLOWS: FlowDef[] = [
   },
   {
     id: "story",
-    name: "เรื่องเล่าจากแผนที่",
+    name: "ย้อนรอยการเมืองไทย",
     short: "Flow B",
-    tagline: "คลิปให้ความรู้แนวเล่าเรื่อง อ้างอิง Wikipedia",
+    tagline: "เล่าประวัติศาสตร์การเมืองไทยแบบเป็นกลาง อ้างอิง Wikipedia มีด่านตรวจเนื้อหาก่อนผลิต",
     workflows: [
       {
         file: "story-video.yml", role: "สร้างและส่งคลิปเล่าเรื่อง", primary: true,
@@ -70,10 +70,10 @@ export const FLOWS: FlowDef[] = [
     ],
     steps: [
       { key: "input", label: "หัวข้อ", tool: "คิวหัวข้อในเว็บนี้", service: "store" },
-      { key: "script", label: "บทและช็อต", tool: "Claude + Wikipedia", service: "gateway" },
-      { key: "visual", label: "แผนที่", tool: "ดาวเทียม Sentinel-2 + OpenStreetMap", service: "wikimedia" },
+      { key: "script", label: "บท + ตรวจเนื้อหา", tool: "Claude + Wikipedia · ด่านตรวจความเป็นกลาง", service: "gateway" },
+      { key: "visual", label: "ภาพ", tool: "ภาพเอกสารจริง Wikimedia · ไทม์ไลน์ พ.ศ. · แผนที่", service: "wikimedia" },
       { key: "voice", label: "เสียง", tool: "ElevenLabs v4 · เสียงคนไทย", service: "elevenlabs" },
-      { key: "render", label: "ตัดต่อ", tool: "กล้องบินแผนที่ + ดนตรี + เสียงเปลี่ยนฉาก", service: "ffmpeg" },
+      { key: "render", label: "ตัดต่อ", tool: "โทนภาพเก่า + ตัวนับปี + ดนตรี + เสียงเปลี่ยนฉาก", service: "ffmpeg" },
       { key: "deliver", label: "ส่ง", tool: "หน้ารีวิว + Telegram", service: "telegram" },
     ],
     publishVar: "STORY_PUBLISH_MODE",
@@ -127,13 +127,13 @@ export const VARIABLES: VarDef[] = [
   },
   {
     name: "STORY_SERIES_NAME", label: "ชื่อซีรีส์ (ป้ายบนคลิป)", scope: "story", kind: "text",
-    workflowDefault: "เรื่องเล่าจากแผนที่",
+    workflowDefault: "ย้อนรอยการเมืองไทย",
     help: "แสดงเป็นป้ายมุมบนของทุกฉาก และใช้ในข้อความโพสต์",
   },
   {
     name: "STORY_NICHE", label: "แนวเนื้อหา", scope: "story", kind: "text",
-    workflowDefault: "เรื่องเล่าประวัติศาสตร์และภูมิศาสตร์ผ่านแผนที่ ทั้งไทยและโลก เล่าแบบสนุก เข้าใจง่าย",
-    help: "ใช้ตอนคิวว่างแล้ว AI เสนอหัวข้อใหม่เอง",
+    workflowDefault: "เล่าประวัติศาสตร์การเมืองไทยแบบเป็นกลาง: การเปลี่ยนแปลงการปกครอง รัฐธรรมนูญ การเลือกตั้ง นายกรัฐมนตรี รัฐสภา พรรคการเมือง และเหตุการณ์สำคัญที่ผ่านมาแล้วอย่างน้อย 15 ปี ด้วยภาพเอกสารจริง ไทม์ไลน์ และแผนที่",
+    help: "ใช้ตอนคิวว่างแล้ว AI เสนอหัวข้อใหม่เอง · ระบบตัดหัวข้อเกี่ยวกับสถาบันฯ คดีที่ยังไม่จบ และการหาเสียงออกเสมอ ไม่ว่าจะตั้งแนวไว้อย่างไร",
   },
   {
     name: "STORY_AUTO_TOPIC", label: "คิวว่างให้ AI คิดหัวข้อเอง", scope: "story", kind: "segmented",
@@ -146,8 +146,8 @@ export const VARIABLES: VarDef[] = [
   },
   {
     name: "STORY_IMAGE_PROVIDER", label: "แหล่งภาพ", scope: "story", kind: "segmented",
-    workflowDefault: "auto",
-    help: "auto ใช้ภาพจริงจาก Wikimedia เป็นหลัก และภาพ AI เมื่อมีเครดิต · cards ใช้การ์ดกราฟิกอย่างเดียว",
+    workflowDefault: "wikimedia",
+    help: "ค่าเริ่มต้นใช้ภาพจริงจาก Wikimedia เท่านั้น ไม่ใช้ภาพ AI ของบุคคลหรือเหตุการณ์จริง ถ้าหาภาพไม่ได้จะใช้การ์ดกราฟิกแทน",
     options: [
       { value: "auto", label: "อัตโนมัติ" },
       { value: "wikimedia", label: "Wikimedia" },

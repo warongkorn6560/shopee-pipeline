@@ -23,7 +23,7 @@ from PIL import Image, ImageDraw, ImageFont
 from ..captions import _clean, _clusters, _wrap_ex
 from ..config import (
     ASSETS, FONT_DISPLAY_MEDIUM_PATH, FONT_DISPLAY_PATH, FONT_PATH, FPS, MUSIC_DIR, OUTPUT_DIR,
-    VIDEO_H, VIDEO_W,
+    STORY_MUSIC, VIDEO_H, VIDEO_W,
 )
 from . import maps
 
@@ -390,6 +390,94 @@ def _render_map_overlays(flat: Image.Image, to_flat, beat: GeoBeat, t: float,
 
 
 # ---------------------------------------------------------------------------
+# Archival look + year cards
+# ---------------------------------------------------------------------------
+def _vignette() -> Image.Image:
+    yy, xx = np.mgrid[0:H, 0:W]
+    d = np.sqrt(((xx - W / 2) / (W / 2)) ** 2 + ((yy - H / 2) / (H / 2)) ** 2)
+    alpha = (np.clip((d - 0.55) / 0.85, 0, 1) ** 1.6 * 175).astype(np.uint8)
+    v = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    v.putalpha(Image.fromarray(alpha, "L"))
+    return v
+
+
+def _grain(seed: int) -> Image.Image:
+    rng = np.random.default_rng(seed)
+    noise = rng.integers(0, 255, (H // 2, W // 2), dtype=np.uint8)
+    g = Image.fromarray(noise, "L").resize((W, H), Image.NEAREST)
+    layer = Image.new("RGBA", (W, H), (128, 128, 128, 0))
+    layer.putalpha(g.point(lambda v: 16 if v > 170 else 0))
+    return layer
+
+
+_VIGNETTE: Image.Image | None = None
+_GRAINS: list[Image.Image] = []
+
+
+def _archival(img: Image.Image, f: int) -> Image.Image:
+    global _VIGNETTE
+    if _VIGNETTE is None:
+        _VIGNETTE = _vignette()
+        _GRAINS.extend(_grain(k) for k in range(4))
+    out = img.convert("RGBA")
+    out.alpha_composite(_VIGNETTE)
+    out.alpha_composite(_GRAINS[(f // 2) % len(_GRAINS)])
+    return out
+
+
+def _year_background(photo: Image.Image | None) -> Image.Image:
+    from PIL import ImageEnhance, ImageFilter
+    if photo is not None:
+        bg = photo.resize((W // 4, H // 4)).filter(ImageFilter.GaussianBlur(6)).resize((W, H))
+        return ImageEnhance.Brightness(bg).enhance(0.32).convert("RGB")
+    bg = Image.new("RGB", (W, H))
+    d = ImageDraw.Draw(bg)
+    for y in range(H):
+        t = y / H
+        d.line([(0, y), (W, y)], fill=(int(24 - 14 * t), int(20 - 12 * t), int(28 - 16 * t)))
+    return bg
+
+
+def _year_frame(bg: Image.Image, f: int, n: int, year_from: float, year_to: float,
+                date: str, subtitle: str, fact: str) -> Image.Image:
+    t = f / max(n - 1, 1)
+    z = 1.0 + 0.06 * _ease(t)
+    w2, h2 = W / z, H / z
+    frame = bg.transform((W, H), Image.EXTENT, ((W - w2) / 2, (H - h2) / 2, (W + w2) / 2, (H + h2) / 2),
+                         Image.BILINEAR).convert("RGBA")
+    k = 1 - (1 - min(t / 0.45, 1)) ** 3          # ease-out count-up
+    shown = int(round(year_from + (year_to - year_from) * k))
+    d = ImageDraw.Draw(frame)
+    # timeline with a travelling marker
+    x0, x1, ty = 110, W - 110, 1035
+    d.line([(x0, ty), (x1, ty)], fill=GOLD + (120,), width=4)
+    for i in range(9):
+        x = x0 + (x1 - x0) * i / 8
+        d.line([(x, ty - 14), (x, ty + 14)], fill=GOLD + (110,), width=3)
+    mx = x0 + (x1 - x0) * (0.15 + 0.7 * k)
+    d.ellipse((mx - 16, ty - 16, mx + 16, ty + 16), fill=GOLD + (255,), outline=(20, 20, 20, 255), width=4)
+    era = _text_block("พ.ศ.", FONT_DISPLAY_MEDIUM_PATH, 58, (255, 255, 255, 220), max_w=400, max_lines=1, stroke=3)
+    num = _text_block(str(shown), FONT_DISPLAY_PATH, 250, GOLD + (255,), max_w=1000, max_lines=1, stroke=6)
+    if era:
+        frame.alpha_composite(era, ((W - era.width) // 2, 540))
+    if num:
+        frame.alpha_composite(num, ((W - num.width) // 2, 600))
+    # date, event and fact stack under the timeline, fading in once the counter lands
+    a = int(255 * _ease((t - 0.3) / 0.15))
+    y = 1078
+    for text, font, size, fill, lines in ((date, FONT_DISPLAY_PATH, 70, (255, 255, 255), 1),
+                                          (subtitle, FONT_DISPLAY_MEDIUM_PATH, 52, (255, 255, 255), 2),
+                                          (fact, FONT_DISPLAY_MEDIUM_PATH, 44, GOLD, 1)):
+        block = _text_block(text, font, size, fill + (255,), max_w=940, max_lines=lines, stroke=4, align="center")
+        if block and a > 0:
+            if a < 255:
+                block = Image.blend(Image.new("RGBA", block.size), block, a / 255)
+            frame.alpha_composite(block, ((W - block.width) // 2, y))
+        y += (block.height + 4) if block else 0
+    return frame
+
+
+# ---------------------------------------------------------------------------
 # Assembly
 # ---------------------------------------------------------------------------
 MAX_MB = 44  # Telegram bots reject uploads over 50 MB
@@ -462,6 +550,8 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
     context: list[Overlay] = []
     label_cache: dict[str, Image.Image] = {}
     prev_kind = None
+    last_photo: Image.Image | None = None
+    last_year = 0.0
 
     for i, (sc, d) in enumerate(zip(plan.scenes, beat_durs)):
         n = max(int(round(d * FPS)), 1)
@@ -475,12 +565,39 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
         subs = [_subtitle_sprite(c) for c in chunks]
         g = geo[i]
         is_photo = sc.visual == "photo" and i in photo_images
-        kind = "photo" if is_photo else "map"
-        print(f"    [render] beat {i + 1}/{len(plan.scenes)} {kind} {d:.1f}s")
+        # a photo beat with no usable archival photo becomes a designed card, never a fake image
+        kind = "photo" if is_photo else ("card" if sc.visual in ("year", "photo") else "map")
+        print(f"    [render] beat {i + 1}/{len(plan.scenes)} {sc.visual if kind == 'card' else kind} {d:.1f}s")
+
+        if kind == "card":
+            bg_photo = last_photo or next((Image.open(prepare_frame(photo_images[j].path, run_dir / f"photo_{j}.jpg")).convert("RGB")
+                                           for j in range(i + 1, len(plan.scenes)) if j in photo_images), None)
+            bg = _year_background(bg_photo)
+            y_to = float(sc.year or 0) if sc.visual == "year" else 0.0
+            y_from = last_year if 0 < last_year < y_to else y_to - 12
+            for f in range(n):
+                sub = subs[min(int(np.searchsorted(bounds, f, side="right")), len(subs) - 1)]
+                if y_to:
+                    fr = _year_frame(bg, f, n, y_from, y_to, sc.card_title, sc.card_subtitle, sc.card_fact)
+                else:
+                    t = f / max(n - 1, 1)
+                    z = 1.0 + 0.06 * _ease(t)
+                    w2, h2 = W / z, H / z
+                    fr = bg.transform((W, H), Image.EXTENT, ((W - w2) / 2, (H - h2) / 2, (W + w2) / 2, (H + h2) / 2),
+                                      Image.BILINEAR)
+                out = _overlay_screen(_archival(fr, f), card=None if y_to and not hook else card, card_t=f,
+                                      sub=sub, credit=None)
+                if prev_kind and prev_kind != kind and f < CROSSFADE and writer.last is not None:
+                    out = Image.blend(writer.last.convert("RGBA"), out, (f + 1) / CROSSFADE)
+                writer.write(out)
+            last_year = y_to or last_year
+            prev_kind = kind
+            continue
 
         if is_photo:
             img = photo_images[i]
             framed = Image.open(prepare_frame(img.path, run_dir / f"photo_{i}.jpg")).convert("RGB")
+            last_photo = framed
             credit = _text_block(img.credit, FONT_PATH, 22, (255, 255, 255, 190), max_w=1000,
                                  max_lines=1, min_size=16)
             for f in range(n):
@@ -490,7 +607,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
                 x0, y0 = (W - w2) / 2, (H - h2) / 2 - 20 * _ease(t)
                 fr = framed.transform((W, H), Image.EXTENT, (x0, y0, x0 + w2, y0 + h2), Image.BILINEAR)
                 sub = subs[min(int(np.searchsorted(bounds, f, side="right")), len(subs) - 1)]
-                out = _overlay_screen(fr, card=card, card_t=f, sub=sub, credit=credit)
+                out = _overlay_screen(_archival(fr, f), card=card, card_t=f, sub=sub, credit=credit)
                 if prev_kind and prev_kind != kind and f < CROSSFADE and writer.last is not None:
                     out = Image.blend(writer.last.convert("RGBA"), out, (f + 1) / CROSSFADE)
                 writer.write(out)
@@ -581,6 +698,9 @@ def _whoosh(run_dir: Path) -> Path:
 
 def _music() -> Path | None:
     folder = MUSIC_DIR / "story"
+    chosen = folder / STORY_MUSIC
+    if chosen.exists():
+        return chosen
     tracks = sorted(folder.glob("*.mp3")) if folder.exists() else []
     preferred = [t for t in tracks if not t.name.startswith("ambient_pad")]
     return (preferred or tracks or [None])[0]

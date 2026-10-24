@@ -22,7 +22,7 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: { default: "Pipeline Control", template: "%s · Pipeline Control" },
-  description: "ควบคุม pipeline สร้างวิดีโอ Shopee Affiliate และเรื่องเล่าจากแผนที่",
+  description: "ควบคุม pipeline สร้างวิดีโอ Shopee Affiliate และย้อนรอยการเมืองไทย",
   robots: { index: false, follow: false },
 };
 

@@ -38,7 +38,8 @@ FOCUS_SCHEMA = _obj({
 BEAT_SCHEMA = _obj({
     "narration": _S, "spoken": _S,
     "card_title": _S, "card_subtitle": _S, "card_fact": _S,
-    "shot": {"type": "string", "enum": ["map", "photo"]},
+    "shot": {"type": "string", "enum": ["photo", "map", "year"]},
+    "year": _N,
     "focus": {"type": "array", "items": FOCUS_SCHEMA},
     "labels": {"type": "array", "items": _S},
     "span_start_km": _N, "span_end_km": _N,
@@ -55,21 +56,30 @@ TOPIC_SCHEMA = _obj({"topic": _S, "angle": _S})
 RESEARCH_SCHEMA = _obj({"articles": {"type": "array", "items": _obj({"lang": {"type": "string", "enum": ["th", "en"]}, "title": _S})}})
 
 
-SHOWRUNNER = f"""You are the showrunner of "{STORY_SERIES_NAME}", a Thai Facebook/TikTok page that explains \
-places through animated satellite maps: real satellite imagery, glowing lines tracing canals, rivers, \
-roads or rail, highlighted districts, numbered pins, geo-anchored Thai labels, and a bold title card \
-on every beat. A Thai narrator reads your script.
+SHOWRUNNER = f"""You are the showrunner of "{STORY_SERIES_NAME}", a Thai Facebook/TikTok page that tells \
+political history as short documentary episodes: how a political event really happened — the cause, \
+the people, the turning point, the consequence — told with real archival photos, a map of where it \
+happened, and animated year cards that walk the timeline. A Thai narrator reads your script.
 
-What makes this format get 100K+ views (learned from the leading Thai map page):
-- Hyper-local curiosity that Thai viewers feel personally: "คลองเลข 1-33 อยู่ตรงไหน?",
-  "บ้านคุณอยู่คลองไหน?" — a question people answer in the comments.
-- A list or journey the camera can walk through beat by beat (canal 1 → 13 → 33, station by
-  station, district by district), each beat with its own card and one concrete number.
-- Dense, specific facts: years (พ.ศ.), lengths (กม.), counts, names of districts and kings.
-- Plain spoken Thai like a friendly documentary host. Short sentences. No filler, no vague
-  generalities ("เทคโนโลยีช่วยให้…" is banned), no moralising.
-- Only facts supported by the SOURCE NOTES. If unsure of a number, leave the number out.
-- Neutral: no politics, no territorial disputes, no claims about living people."""
+What makes short history videos get shared:
+- A hook that reframes something Thai people think they know ("ทำไมรัฐธรรมนูญไทยถึงมีถึง 20 ฉบับ?",
+  "นายกฯ คนแรกของไทยอยู่ในตำแหน่งได้นานแค่ไหน?") — a question people want answered and argued about.
+- A clear timeline the viewer can follow: one turning point per beat, each with a date and a number.
+- Concrete specifics: dates (วัน เดือน พ.ศ.), names and titles, places, counts, durations.
+- Plain spoken Thai like a calm documentary host. Short sentences. No filler, no moralising.
+
+Non-negotiable editorial rules (Thai law and fairness):
+- Only facts supported by the SOURCE NOTES. If historians disagree, say so in one neutral line.
+- Strictly neutral: describe what happened and what each side said; never judge who was right,
+  never use loaded words, never endorse or attack a party, movement or person.
+- The Thai monarchy is out of scope: do not discuss any king or member of the royal family, their
+  actions, roles or opinions. The only allowed mentions are reign names used as neutral time markers
+  ("สมัยรัชกาลที่ 7") and the textbook phrase for the 2475 change of government
+  ("เปลี่ยนแปลงการปกครองเป็นระบอบประชาธิปไตยอันมีพระมหากษัตริย์ทรงเป็นประมุข").
+- No active court cases.
+- Living people: only their documented public roles and actions; no claims about motives or character.
+- No current election campaigning, no calls to action beyond following the page and commenting.
+- No graphic descriptions of violence; state casualty figures only if they are in the notes."""
 
 STORY_PROMPT = """TOPIC: {topic}
 ANGLE: {angle}
@@ -79,45 +89,47 @@ SOURCE NOTES (Wikipedia):
 
 Write the plan for one vertical video of about {seconds} seconds.
 
-BEATS — 9 to 14, in order:
-  1. HOOK: wide map of the region, card = the curiosity question. Narration ≤ 2 short sentences.
-  2-3. CONTEXT: where/when, zoom toward the subject.
-  middle beats: the list/journey — one item per beat, each with its own card and fact.
-  second-to-last: the payoff / surprising fact.
-  last: CTA — ask the comment question, then "กดติดตาม{series} ไว้ แล้วมาดูตอนต่อไปกัน".
+BEATS — 7 to 12, in order:
+  1. HOOK: the curiosity question on a strong archival photo or year card. ≤ 2 short sentences.
+  2. CONTEXT: when and where — usually a map beat or a year card.
+  middle beats: the turning points in time order, one per beat, each with its date and one number.
+  second-to-last: the consequence / what it changed (often a year card for the end date).
+  last: CTA — ask the comment question, then "กดติดตาม{series}ไว้ แล้วมาดูตอนต่อไปกัน".
 
 FIELDS PER BEAT
 - narration: what viewers read in subtitles (Thai, numbers as digits OK). Put a space between
   phrases every 8-25 characters, the way Thai is normally spaced, so subtitles break cleanly.
-- spoken: the SAME sentence written for text-to-speech: every number, year and unit spelled out in
-  Thai words (พ.ศ. 2433 → พุทธศักราชสองพันสี่ร้อยสามสิบสาม, 25 กม. → ยี่สิบห้ากิโลเมตร,
-  ร.5 → รัชกาลที่ห้า), no symbols, no English abbreviations, no emoji.
+- spoken: the SAME sentence written for text-to-speech: every number, date and unit spelled out in
+  Thai words (24 มิ.ย. 2475 → วันที่ยี่สิบสี่ มิถุนายน พุทธศักราชสองพันสี่ร้อยเจ็ดสิบห้า,
+  ร.7 → รัชกาลที่เจ็ด), no symbols, no English abbreviations, no emoji.
   All spoken text together: {chars_min}-{chars_max} Thai characters.
-- card_title: big title on the card, max 14 characters (e.g. "คลอง 6", "ทุ่งรังสิต").
-- card_subtitle: max 34 characters (places, names — e.g. "คลองหลวง · วังน้อย · ลำลูกกา").
-- card_fact: max 34 characters, one number fact (e.g. "ปทุมธานี / อยุธยา · ยาว ~39 กม."), or "".
-- shot: "map" for almost every beat. "photo" only when a real historical photo or portrait OF THIS
-  EXACT THAI PLACE OR PERSON is essential (max 2 per video) — then set photo_query to 2-5 ENGLISH
-  Wikimedia Commons keywords that name it (e.g. "Saen Saep canal Bangkok 1900"). If unsure such a
-  photo exists, use "map".
-- focus: map features to draw. Use names exactly as they appear in OpenStreetMap Thailand (Thai):
-  e.g. {{"name": "คลองรังสิตประยูรศักดิ์", "kind": "waterway", "style": "line", "number": ""}},
-  {{"name": "อำเภอธัญบุรี", "kind": "admin_area", "style": "area", "number": ""}},
-  {{"name": "ตลาดรังสิต", "kind": "place", "style": "pin", "number": "1"}}.
-  kind: waterway | road | railway | admin_area | area | place. style: line | area | pin.
-  "number" is the label on a pin ("6", "13") or "". 0-3 features per beat; the beat's subject first.
-- labels: 2-6 Thai place names to label on the map for orientation (provinces, districts, towns).
-- span_start_km / span_end_km: map width in km at the start and end of the beat (the camera
-  zooms between them). Hook ~ 80-250, district beats ~ 10-40. Keep the ratio ≤ 4.
+- card_title: big title on the card, max 14 characters (a name, an event, or a date).
+- card_subtitle: max 34 characters (who / what / where).
+- card_fact: max 34 characters, one number fact, or "".
+- shot — choose the visual that best proves the sentence:
+  "photo": a real archival photo, portrait or document. Set photo_query to 2-5 ENGLISH Wikimedia
+     Commons keywords that name it exactly (e.g. "Democracy Monument Bangkok", "Pridi Banomyong",
+     "Siamese revolution 1932", "Thai constitution 1932 document"). About half the beats.
+  "year": an animated year card for a key date — set year to the Buddhist-era year as a number
+     (e.g. 2475) and card_title to the date text ("24 มิ.ย. 2475"). 1-3 per video.
+  "map": where it happened — fill focus/labels/spans as below. 1-3 per video.
+  Use year = 0 and photo_query = "" when they don't apply.
+- focus (map beats): real places/features with names as in OpenStreetMap Thailand (Thai), e.g.
+  {{"name": "ถนนราชดำเนินกลาง", "kind": "road", "style": "line", "number": ""}},
+  {{"name": "อนุสาวรีย์ประชาธิปไตย", "kind": "place", "style": "pin", "number": "1"}}.
+  kind: waterway | road | railway | admin_area | area | place. style: line | area | pin. [] if none.
+- labels (map beats): 2-6 Thai place names for orientation. [] otherwise.
+- span_start_km / span_end_km (map beats): map width at start/end; city scale ~2-15, country ~600-1200.
+  Use 30 and 15 when not a map beat.
 
-REGION: lon/lat box (west, south, east, north) that contains every place in the story.
+REGION: lon/lat box (west, south, east, north) containing the map places (Thailand if none).
 
 ALSO
 - title: video title, max 40 characters.
 - hook_title (max 14) + hook_subtitle (max 32): the opening card.
 - post_caption: 1-2 short curiosity lines for the Facebook post, then the comment question and
-  "คอมเมนต์บอกกันหน่อย 👇". No hashtags here.
-- comment_question: the question viewers answer.
+  "คอมเมนต์บอกกันหน่อย 👇". Neutral wording. No hashtags here.
+- comment_question: an open, neutral question viewers answer (not "who was right").
 - hashtags: 5 hashtags starting with #, including #{series_tag}."""
 
 TOPIC_PROMPT = """Series: {series}
@@ -126,15 +138,16 @@ Niche: {niche}
 Already covered (do not repeat or closely paraphrase):
 {previous}
 
-Propose ONE new topic for this Thai map-storytelling page. It must be:
-- About a place IN THAILAND that Thai viewers know personally: a canal, river, road, rail line,
-  district, old town name, market, island, megaproject, or how an area got its shape or name.
-- Answerable with well-documented facts and drawable on a satellite map (things with a location).
-- A curiosity question Thai people want to comment on ("…อยู่ตรงไหน?", "ทำไม…ถึงชื่อนี้?", "…มีกี่…?").
-- NOT foreign, NOT abstract, NOT politics or territorial disputes.
-Write topic (Thai question, ≤ 70 characters) and angle (one Thai sentence: the list or journey the
-camera will walk through)."""
-
+Propose ONE new episode topic. It must be:
+- Political history with a clear, well-documented timeline: mostly Thai (constitutions, elections,
+  prime ministers' terms, parliament, political parties, key laws, the 2475 change of government,
+  historical turning points), sometimes world political history that Thai viewers know.
+- At least 15 years in the past, so it is history rather than current politics.
+- A curiosity question Thai people want answered ("ทำไม…?", "…เกิดขึ้นได้อย่างไร?", "…มีกี่…?").
+- NOT centred on the monarchy or royal family, NOT centred on a living politician, NOT an active court
+  case, NOT a current election issue.
+Write topic (Thai question, ≤ 70 characters) and angle (one Thai sentence: the timeline the episode
+will walk through)."""
 
 @dataclass
 class StoryScene:
@@ -152,6 +165,7 @@ class StoryScene:
     labels: list[str] = field(default_factory=list)
     span_start_km: float = 60.0
     span_end_km: float = 30.0
+    year: float = 0.0
 
 
 @dataclass
@@ -223,7 +237,7 @@ def research(topic: str, angle: str) -> list[tuple[str, str]]:
 
 def propose_topic(previous: list[str]) -> tuple[str, str]:
     data = generate_json(
-        "You plan topics for a Thai map-storytelling page. Every topic is a real place in Thailand.",
+        "You plan episodes for a neutral Thai political-history page. Every topic is documented history.",
         TOPIC_PROMPT.format(series=STORY_SERIES_NAME, niche=STORY_NICHE,
                             previous="\n".join(f"- {p}" for p in previous[-80:]) or "- (none yet)"),
         schema=TOPIC_SCHEMA, max_tokens=2000, effort="low", gateway_model="openai/gpt-4.1-mini",
@@ -252,7 +266,7 @@ def _scene(b: dict) -> StoryScene:
         narration=str(b.get("narration", "")).strip(),
         spoken=str(b.get("spoken", "")).strip() or str(b.get("narration", "")).strip(),
         caption=str(b.get("card_title", "")).strip(),
-        visual="photo" if shot == "photo" else "map",
+        visual=shot if shot in ("photo", "year") else "map",
         image_query=str(b.get("photo_query", "")).strip(),
         card_title=str(b.get("card_title", "")).strip()[:20],
         card_subtitle=str(b.get("card_subtitle", "")).strip()[:44],
@@ -261,6 +275,7 @@ def _scene(b: dict) -> StoryScene:
         focus=focus,
         labels=[str(x).strip() for x in (b.get("labels") or []) if str(x).strip()][:6],
         span_start_km=start, span_end_km=end,
+        year=_clamp(b.get("year"), 0, 3000, 0),
     )
 
 
@@ -294,37 +309,125 @@ def write_story(topic: str, angle: str = "") -> StoryPlan:
     )
 
 
+COMPLIANCE_SCHEMA = _obj({"pass": {"type": "boolean"}, "issues": {"type": "array", "items": _S}})
+COMPLIANCE_SYSTEM = """You are the standards editor of a Thai political-history page. You check a draft
+video script before it is produced and you are strict: when in doubt, fail it."""
+COMPLIANCE_PROMPT = """Check this draft against every rule. Fail it if ANY rule is broken.
+
+RULES
+1. Monarchy out of scope: no discussion of any king or royal family member, their actions, roles or
+   opinions. Allowed only: reign names as time markers ("สมัยรัชกาลที่ 7") and the textbook phrase
+   "เปลี่ยนแปลงการปกครองเป็นระบอบประชาธิปไตยอันมีพระมหากษัตริย์ทรงเป็นประมุข".
+2. Neutral: no judgement of who was right, no loaded or emotive words, no endorsing or attacking any
+   party, movement or person.
+3. Living people: only documented public roles/actions; nothing about motives or character.
+4. No current election campaigning, no active court cases, no calls to action except follow/comment.
+5. No graphic violence.
+6. Every factual claim must be plausible for the cited sources: {sources}
+
+DRAFT
+Title: {title}
+Opening card: {hook}
+Beats:
+{beats}
+Post caption: {caption}
+
+Return pass=true only if every rule holds; otherwise pass=false and list each issue in Thai,
+quoting the offending text."""
+
+
+class ComplianceError(RuntimeError):
+    pass
+
+
+# Deterministic backstop behind the LLM editor, which can miss things, vary between runs, or be the
+# weaker AI Gateway fallback. Royal terms outside the allowed phrases fail closed every time.
+_ALLOWED_PHRASES = (
+    "เปลี่ยนแปลงการปกครองเป็นระบอบประชาธิปไตยอันมีพระมหากษัตริย์ทรงเป็นประมุข",
+    "ระบอบประชาธิปไตยอันมีพระมหากษัตริย์ทรงเป็นประมุข",
+    "พระราชบัญญัติ", "พระราชกฤษฎีกา", "พระราชกำหนด",
+)
+_ROYAL_TERMS = (
+    "ในหลวง", "พระบาทสมเด็จ", "พระเจ้าอยู่หัว", "กษัตริย์", "สถาบันฯ", "ราชวงศ์", "ราชินี", "ราชกุมาร",
+    "เจ้าฟ้า", "พระองค์", "พระบรม", "พระราช", "ทรงพระ", "หมิ่นพระ", "ล้มเจ้า", "ม.112", "มาตรา 112",
+    "มาตราหนึ่งร้อยสิบสอง", "ภูมิพล", "วชิราลงกรณ", "สิริกิติ์", "ประชาธิปก", "อานันทมหิดล",
+)
+
+
+def royal_term_hits(plan: "StoryPlan") -> list[str]:
+    fields = [plan.title, plan.hook_title, plan.hook_subtitle, plan.post_caption, plan.comment_question,
+              " ".join(plan.hashtags)]
+    for sc in plan.scenes:
+        fields += [sc.narration, sc.spoken, sc.card_title, sc.card_subtitle, sc.card_fact, " ".join(sc.labels)]
+    text = " ".join(f for f in fields if f)
+    for phrase in _ALLOWED_PHRASES:
+        text = text.replace(phrase, " ")
+    return [t for t in _ROYAL_TERMS if t in text]
+
+
+def compliance_review(plan: "StoryPlan") -> tuple[bool, list[str]]:
+    hits = royal_term_hits(plan)
+    beats = "\n".join(f"{i + 1}. [{s.card_title} | {s.card_subtitle} | {s.card_fact}] {s.narration}"
+                      for i, s in enumerate(plan.scenes))
+    data = generate_json(
+        COMPLIANCE_SYSTEM,
+        COMPLIANCE_PROMPT.format(sources=", ".join(plan.sources) or "-", title=plan.title,
+                                 hook=f"{plan.hook_title} / {plan.hook_subtitle}", beats=beats,
+                                 caption=plan.post_caption),
+        schema=COMPLIANCE_SCHEMA, max_tokens=8000, effort="medium", gateway_model="openai/gpt-4.1-mini",
+    )
+    issues = [str(x) for x in data.get("issues", [])][:8]
+    if hits:
+        issues.insert(0, "ห้ามมีคำเกี่ยวกับสถาบันพระมหากษัตริย์นอกวลีที่อนุญาต — พบ: " + ", ".join(hits))
+    return bool(data.get("pass")) and not hits, issues
+
+
+def write_reviewed_story(topic: str, angle: str = "") -> "StoryPlan":
+    """Write → standards review → one rewrite with the editor's notes → fail closed."""
+    plan = write_story(topic, angle)
+    ok, issues = compliance_review(plan)
+    if ok:
+        print("  [review] passed standards check")
+        return plan
+    print(f"  [review] failed: {issues}")
+    plan = write_story(topic, (angle + "\n\nThe previous draft FAILED the standards review for these reasons — "
+                               "fix every one:\n- " + "\n- ".join(issues)).strip())
+    ok, issues = compliance_review(plan)
+    if not ok:
+        raise ComplianceError("ไม่ผ่านการตรวจมาตรฐานเนื้อหา: " + " | ".join(issues))
+    print("  [review] passed on rewrite")
+    return plan
+
+
 def mock_story(topic: str) -> StoryPlan:
-    """Offline plan (no LLM) with real geography, for testing the map renderer."""
-    def b(n, sp, title, sub, fact, focus, labels, s0, s1):
+    """Offline plan (no LLM) that exercises every beat type: year, photo (falls back to a card
+    offline), map."""
+    def b(visual, n, sp, title, sub, fact, *, year=0, focus=(), labels=(), s0=0, s1=0, query=""):
         return StoryScene(narration=n, spoken=sp, card_title=title, card_subtitle=sub, card_fact=fact,
-                          caption=title, highlight=fact, focus=focus, labels=labels,
-                          span_start_km=s0, span_end_km=s1)
-    canal = {"name": "คลองรังสิตประยูรศักดิ์", "kind": "waterway", "style": "line", "number": ""}
+                          caption=title, highlight=fact, visual=visual, year=year, focus=list(focus),
+                          labels=list(labels), span_start_km=s0, span_end_km=s1, image_query=query)
     scenes = [
-        b("คลองหนึ่ง คลองสอง เรียกกันจนชิน แต่รู้ไหมว่าคลองเลขไปสุดที่เลขอะไร?",
-          "คลองหนึ่ง คลองสอง เรียกกันจนชิน แต่รู้ไหมว่าคลองเลขไปสุดที่เลขอะไร",
-          "ทุ่งรังสิต", "คลองเลข 1-33 อยู่ตรงไหน?", "", [canal],
-          ["ปทุมธานี", "กรุงเทพมหานคร", "นครนายก", "พระนครศรีอยุธยา"], 140, 90),
-        b("ทุกอย่างเริ่มจากคลองรังสิตประยูรศักดิ์ ขุดในสมัยรัชกาลที่ 5 เมื่อ พ.ศ. 2433",
-          "ทุกอย่างเริ่มจากคลองรังสิตประยูรศักดิ์ ขุดในสมัยรัชกาลที่ห้า เมื่อพุทธศักราชสองพันสี่ร้อยสามสิบสาม",
-          "คลองรังสิตฯ", "ขุดสมัยรัชกาลที่ 5", "พ.ศ. 2433", [canal], ["ปทุมธานี", "ธัญบุรี"], 70, 35),
-        b("คลองซอยถูกขุดตัดผ่านเป็นตาราง แล้วเรียกชื่อเป็นตัวเลขเรียงกันไป",
-          "คลองซอยถูกขุดตัดผ่านเป็นตาราง แล้วเรียกชื่อเป็นตัวเลขเรียงกันไป",
-          "คลองซอย", "ตั้งชื่อเป็นตัวเลข", "", [canal, {"name": "อำเภอธัญบุรี", "kind": "admin_area", "style": "area", "number": ""}],
-          ["ธัญบุรี", "ลำลูกกา"], 45, 25),
-        b("วันนี้ทุ่งนาเหล่านั้นกลายเป็นบ้าน ตลาด และมหาวิทยาลัยหลายแห่ง",
-          "วันนี้ทุ่งนาเหล่านั้นกลายเป็นบ้าน ตลาด และมหาวิทยาลัยหลายแห่ง",
-          "ทุ่งรังสิตวันนี้", "จากนาข้าวสู่เมือง", "", [{"name": "รังสิต", "kind": "place", "style": "pin", "number": "1"}],
-          ["รังสิต", "คลองหลวง"], 30, 15),
-        b("บ้านคุณอยู่คลองเลขอะไร คอมเมนต์บอกกันหน่อย กดติดตามไว้ แล้วมาดูตอนต่อไปกัน",
-          "บ้านคุณอยู่คลองเลขอะไร คอมเมนต์บอกกันหน่อย กดติดตามไว้ แล้วมาดูตอนต่อไปกัน",
-          "บ้านคุณคลองไหน?", "คอมเมนต์บอกกันหน่อย", "", [canal], ["ปทุมธานี"], 90, 120),
+        b("year", "คนไทยเข้าคูหาเลือกตั้งครั้งแรก เมื่อเก้าสิบกว่าปีก่อน แต่ไม่ได้เลือก ส.ส. ตรงอย่างวันนี้",
+          "คนไทยเข้าคูหาเลือกตั้งครั้งแรก เมื่อเก้าสิบกว่าปีก่อน แต่ไม่ได้เลือกสอสอตรงอย่างวันนี้",
+          "15 พ.ย. 2476", "การเลือกตั้งทั่วไปครั้งแรก", "เลือกตั้งทางอ้อม", year=2476),
+        b("photo", "สภาผู้แทนราษฎรชุดแรก ประชุมกันที่พระที่นั่งอนันตสมาคม",
+          "สภาผู้แทนราษฎรชุดแรก ประชุมกันที่พระที่นั่งอนันตสมาคม",
+          "สภาชุดแรก", "ประชุมที่พระที่นั่งอนันตสมาคม", "", query="Ananta Samakhom Throne Hall"),
+        b("map", "ตอนนั้นสยามแบ่งเป็นเจ็ดสิบจังหวัด แต่ละจังหวัดได้ผู้แทนตามจำนวนประชากร",
+          "ตอนนั้นสยามแบ่งเป็นเจ็ดสิบจังหวัด แต่ละจังหวัดได้ผู้แทนตามจำนวนประชากร",
+          "70 จังหวัด", "ผู้แทน 78 คน", "", labels=["กรุงเทพมหานคร", "เชียงใหม่", "ขอนแก่น", "สงขลา"],
+          s0=1600, s1=1100),
+        b("year", "สี่ปีต่อมา จึงมีการเลือกตั้ง ส.ส. แบบทางตรงเป็นครั้งแรก",
+          "สี่ปีต่อมา จึงมีการเลือกตั้งสอสอแบบทางตรงเป็นครั้งแรก",
+          "7 พ.ย. 2480", "เลือกตั้งทางตรงครั้งแรก", "", year=2480),
+        b("photo", "คุณคิดว่าการเลือกตั้งครั้งไหนสำคัญที่สุด คอมเมนต์บอกกันหน่อย แล้วกดติดตามไว้",
+          "คุณคิดว่าการเลือกตั้งครั้งไหนสำคัญที่สุด คอมเมนต์บอกกันหน่อย แล้วกดติดตามไว้",
+          "ครั้งไหนสำคัญสุด?", "คอมเมนต์บอกกันหน่อย", "", query="Thailand parliament 1930s"),
     ]
-    return StoryPlan(topic=topic, title="ทุ่งรังสิต คลองเลขไปสุดที่เท่าไหร่", scenes=scenes,
-                     post_caption="คลองหนึ่ง คลองสอง เรียกกันจนชิน แต่คลองเลขไปสุดที่เลขอะไร?\nบ้านคุณคลองไหน คอมเมนต์บอกกันหน่อย 👇",
-                     hashtags=["#ทุ่งรังสิต", "#คลองรังสิต", "#ปทุมธานี", "#ชื่อบ้านนามเมือง", "#เรื่องเล่าจากแผนที่"],
-                     sources=["Wikipedia (ไทย): คลองรังสิตประยูรศักดิ์"],
-                     hook_title="ทุ่งรังสิต", hook_subtitle="คลองเลข 1-33 อยู่ตรงไหน?",
-                     region={"name": "ทุ่งรังสิต", "west": 100.45, "south": 13.85, "east": 101.15, "north": 14.25},
-                     comment_question="บ้านคุณอยู่คลองเลขอะไร?")
+    return StoryPlan(topic=topic, title="เลือกตั้งครั้งแรกของไทย เลือกกันยังไง", scenes=scenes,
+                     post_caption="คนไทยเลือกตั้งครั้งแรกเมื่อ พ.ศ. 2476 แต่ไม่ได้เลือก ส.ส. ตรงอย่างวันนี้\nครั้งไหนสำคัญที่สุด คอมเมนต์บอกกันหน่อย 👇",
+                     hashtags=["#ย้อนรอยการเมืองไทย", "#ประวัติศาสตร์การเมือง", "#เลือกตั้ง"],
+                     sources=["Wikipedia (ไทย): การเลือกตั้งสมาชิกสภาผู้แทนราษฎรไทยเป็นการทั่วไป พ.ศ. 2476"],
+                     hook_title="เลือกตั้งครั้งแรก", hook_subtitle="คนไทยเลือกกันยังไง?",
+                     region={"name": "ประเทศไทย", "west": 97.3, "south": 5.6, "east": 105.7, "north": 20.5},
+                     comment_question="การเลือกตั้งครั้งไหนสำคัญที่สุด?")

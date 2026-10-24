@@ -13,7 +13,7 @@ export default function LoginPage() {
           <Mark />
           <div>
             <div className="font-display text-lg font-semibold leading-none text-ink">Pipeline Control</div>
-            <div className="mt-1 text-xs text-ink-3">Shopee Affiliate · เรื่องเล่าจากแผนที่</div>
+            <div className="mt-1 text-xs text-ink-3">Shopee Affiliate · ย้อนรอยการเมืองไทย</div>
           </div>
         </div>
         <div className="rounded-2xl border border-line bg-surface p-6 shadow-card">

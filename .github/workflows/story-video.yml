@@ -6,7 +6,11 @@ on:
   workflow_dispatch:
     inputs:
       topic:
-        description: "One-off topic (leave empty to use the Stories queue in Google Sheets)"
+        description: "One-off topic (leave empty to use the Stories queue on the dashboard)"
+        required: false
+        default: ""
+      seconds:
+        description: "Target length in seconds for this run (empty = STORY_TARGET_SECONDS)"
         required: false
         default: ""
 
@@ -44,7 +48,8 @@ jobs:
           CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-opus-5-5' }}
           CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
           TTS_MODEL: ${{ vars.TTS_MODEL || 'eleven_v4' }}
-          STORY_TARGET_SECONDS: ${{ vars.STORY_TARGET_SECONDS || '75' }}
+          STORY_TARGET_SECONDS: ${{ inputs.seconds || vars.STORY_TARGET_SECONDS || '75' }}
+          STORY_MUSIC: ${{ vars.STORY_MUSIC || 'politics_bed.mp3' }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           TTS_PROVIDER: elevenlabs
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -63,7 +68,7 @@ jobs:
           PUBLISH_MODE: ${{ vars.STORY_PUBLISH_MODE || 'review' }}
           STORY_SERIES_NAME: ${{ vars.STORY_SERIES_NAME }}
           STORY_NICHE: ${{ vars.STORY_NICHE }}
-          STORY_IMAGE_PROVIDER: ${{ vars.STORY_IMAGE_PROVIDER || 'auto' }}
+          STORY_IMAGE_PROVIDER: ${{ vars.STORY_IMAGE_PROVIDER || 'wikimedia' }}   # real archival photos only, never AI images of real people
           STORY_AUTO_TOPIC: ${{ vars.STORY_AUTO_TOPIC || 'on' }}
           STORY_VOICE_ID: ${{ vars.STORY_VOICE_ID }}
           COST_CAP_USD: "0.50"

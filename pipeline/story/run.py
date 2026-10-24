@@ -104,7 +104,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
     if live:
         topics.update(topic.ref, runUrl=run_url(), lastError="")
     try:
-        plan = writer.mock_story(topic.topic) if offline else writer.write_story(topic.topic, topic.angle)
+        plan = writer.mock_story(topic.topic) if offline else writer.write_reviewed_story(topic.topic, topic.angle)
         print(f"  title: {plan.title} · {len(plan.scenes)} beats · {len(plan.spoken)} spoken chars")
         if dry_run:
             print(json.dumps({"title": plan.title, "scenes": [s.__dict__ for s in plan.scenes],
