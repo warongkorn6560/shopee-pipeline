@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Layers, Pause, Play, RefreshCw, X } from "lucide-react";
+import { refreshStats } from "@/app/(app)/actions";
+import { relative } from "@/lib/format";
 import { runStoryBurst, runWorkflow, setWorkflowEnabled, type ActionResult } from "@/app/(app)/actions";
 import { useToast } from "./toast";
 import { btn, cx } from "./ui";
@@ -205,6 +207,38 @@ export function RefreshButton() {
 }
 
 /** Re-fetches server data on an interval while something is running. */
+/** Stats page: fetch fresh numbers now, then keep reloading until they land. */
+export function StatsRefresh({ updatedAt, running }: { updatedAt: string | null; running: boolean }) {
+  const router = useRouter();
+  const { pending, run } = useAction();
+  const [waiting, setWaiting] = useState<string | null>(null);
+  // Busy until the server reports numbers newer than the click (or 4 min pass).
+  const arrived = Boolean(waiting && updatedAt && updatedAt > waiting && !running);
+  const busy = running || (waiting !== null && !arrived);
+  useEffect(() => {
+    if (!busy) return;
+    const id = setInterval(() => router.refresh(), 10_000);
+    const stop = setTimeout(() => setWaiting(null), 4 * 60_000);
+    return () => { clearInterval(id); clearTimeout(stop); };
+  }, [busy, router]);
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-xs text-ink-3" suppressHydrationWarning>
+        {busy ? "กำลังดึงยอดวิวล่าสุด…" : updatedAt ? `อัปเดต ${relative(updatedAt)}` : "ยังไม่มีข้อมูล"}
+      </span>
+      <button
+        type="button"
+        disabled={pending || busy}
+        onClick={() => run(() => refreshStats(), () => setWaiting(new Date().toISOString()))}
+        className={cx(btn.base, btn.secondary)}
+      >
+        <RefreshCw className={cx("size-4", busy && "animate-spin")} />
+        {busy ? "กำลังดึง…" : "รีเฟรช"}
+      </button>
+    </div>
+  );
+}
+
 export function AutoRefresh({ active, seconds = 12 }: { active: boolean; seconds?: number }) {
   const router = useRouter();
   useEffect(() => {

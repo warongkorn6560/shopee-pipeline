@@ -39,6 +39,19 @@ export async function runWorkflow(file: string, topic?: string): Promise<ActionR
   return { ok: true, message: "ส่งคำสั่งรันแล้ว — GitHub จะเริ่มภายในไม่กี่วินาที" };
 }
 
+/** Pull fresh view counts now (stats.yml, ~1 min). */
+export async function refreshStats(): Promise<ActionResult> {
+  await requireSession();
+  try {
+    const running = (await gh.listRunsFor("stats.yml", 3)).some((r) => r.status !== "completed");
+    if (running) return { ok: true, message: "กำลังดึงยอดวิวอยู่แล้ว — รอสักครู่" };
+    await gh.dispatch("stats.yml");
+  } catch (e) {
+    return fail(e, "สั่งดึงยอดวิวไม่สำเร็จ");
+  }
+  return { ok: true, message: "กำลังดึงยอดวิวล่าสุด — ประมาณ 1 นาที หน้านี้จะอัปเดตเอง" };
+}
+
 /** Burst: make `count` story videos back to back (story-video.yml runs them one at a time). */
 export async function runStoryBurst(count: number, preview: boolean, style = ""): Promise<ActionResult> {
   await requireSession();

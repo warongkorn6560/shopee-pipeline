@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Card, CardHeader, InlineError, PageHeader, Skeleton, cx } from "@/components/ui";
+import { StatsRefresh } from "@/components/controls";
 import { channels } from "@/lib/channels";
+import * as gh from "@/lib/github";
+import { githubConfigured } from "@/lib/github";
 import { requireSession } from "@/lib/dal";
 import { getVideos, settle } from "@/lib/data";
 import { compact, relative, thaiDate } from "@/lib/format";
@@ -21,12 +24,24 @@ const RANGES = [
 export default function StatsPage({ searchParams }: PageProps<"/stats">) {
   return (
     <div className="space-y-6">
-      <PageHeader title="สถิติ" subtitle="ยอดวิวและการมีส่วนร่วมของคลิปเล่าเรื่อง · อัปเดตทุกชั่วโมง · AI ใช้ข้อมูลนี้เลือกหัวข้อถัดไป" />
+      <PageHeader title="สถิติ" subtitle="ยอดวิวและการมีส่วนร่วมของคลิปเล่าเรื่อง · อัปเดตทุกชั่วโมง · AI ใช้ข้อมูลนี้เลือกหัวข้อถัดไป"
+        action={<Suspense><RefreshControl /></Suspense>} />
       <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
         <StatsContent searchParams={searchParams} />
       </Suspense>
     </div>
   );
+}
+
+async function RefreshControl() {
+  await requireSession();
+  const [res, runs] = await Promise.all([
+    getVideos(),
+    githubConfigured() ? gh.listRunsFor("stats.yml", 3).catch(() => []) : Promise.resolve([]),
+  ]);
+  const updatedAt = res.ok ? res.value.reduce<string | null>((m, v) => (v.stats && (!m || v.stats.updatedAt > m) ? v.stats.updatedAt : m), null) : null;
+  if (!githubConfigured()) return null;
+  return <StatsRefresh updatedAt={updatedAt} running={runs.some((r) => r.status !== "completed")} />;
 }
 
 async function StatsContent({ searchParams }: { searchParams: PageProps<"/stats">["searchParams"] }) {
