@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { CONTACT } from "@/lib/brand";
 
-export const metadata: Metadata = { title: "แผนที่สัตว์ไทย · Thai Wildlife Map", robots: { index: true, follow: true } };
+export const metadata: Metadata = { title: { absolute: "แผนที่สัตว์ไทย · Thai Wildlife Map" }, robots: { index: true, follow: true } };
 
 export default function About() {
   return (

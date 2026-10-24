@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { CONTACT } from "@/lib/brand";
 
-export const metadata: Metadata = { title: "Terms of Service · แผนที่สัตว์ไทย", robots: { index: true, follow: true } };
+export const metadata: Metadata = { title: { absolute: "Terms of Service · แผนที่สัตว์ไทย" }, robots: { index: true, follow: true } };
 
 export default function Terms() {
   return (

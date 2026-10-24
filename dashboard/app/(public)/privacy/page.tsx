@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { CONTACT } from "@/lib/brand";
 
-export const metadata: Metadata = { title: "Privacy Policy · แผนที่สัตว์ไทย", robots: { index: true, follow: true } };
+export const metadata: Metadata = { title: { absolute: "Privacy Policy · แผนที่สัตว์ไทย" }, robots: { index: true, follow: true } };
 
 export default function Privacy() {
   return (
