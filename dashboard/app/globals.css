@@ -206,3 +206,9 @@ dialog::backdrop {
   background: rgb(9 12 16 / 0.55);
   backdrop-filter: blur(2px);
 }
+
+/* Grid children default to min-width:auto, so a wide table or chart inside a
+   card would stretch the whole page on phones; let them shrink and scroll inside. */
+@layer base {
+  .grid > * { min-width: 0; }
+}
