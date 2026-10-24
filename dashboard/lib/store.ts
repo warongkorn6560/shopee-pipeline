@@ -201,7 +201,7 @@ export async function presignedPlayback(pathname: string, minutes = 120): Promis
 // Storage guard: posted clips only need their file for a week (retries), the rest
 // for 30 days, and the store never grows past STORE_CAP_BYTES (oldest go first).
 export const POSTED_RETENTION_DAYS = 7;
-const STORE_CAP_BYTES = 4 * 1024 ** 3;
+const STORE_CAP_BYTES = 2 * 1024 ** 3;
 
 const wasPosted = (v: Video) => v.status === "posted" || Object.values(v.published ?? {}).some(
   (r) => r && typeof r === "object" && !("error" in r) && !("skipped" in r),
