@@ -153,6 +153,20 @@ export async function mutate<N extends Name, R>(
   throw new Error("unreachable");
 }
 
+// Small key/value doc for pipeline bookkeeping (e.g. the last budget notice day).
+const STATE = "data/state.json";
+
+export async function readState(): Promise<Record<string, string>> {
+  const res = await get(STATE, { access: "private", useCache: false });
+  if (!res || res.statusCode !== 200) return {};
+  return JSON.parse(await new Response(res.stream).text()) as Record<string, string>;
+}
+
+export async function writeState(patch: Record<string, string>): Promise<void> {
+  const state = { ...(await readState()), ...patch };
+  await put(STATE, JSON.stringify(state), { access: "private", contentType: "application/json", allowOverwrite: true, cacheControlMaxAge: 60 });
+}
+
 export function newId(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 }

@@ -5,7 +5,7 @@ import { claudeThisMonth } from "@/lib/context";
 import { effective, getVariables } from "@/lib/data";
 import { fillImages, productImage } from "@/lib/shopee";
 import {
-  expireOldVideos, list, mutate, newId, now, presignedPlayback, presignedUpload,
+  expireOldVideos, list, mutate, newId, now, presignedPlayback, presignedUpload, readState, writeState,
   type Product, type Story, type Video, type VideoStatus,
 } from "@/lib/store";
 
@@ -80,6 +80,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
   const origin = new URL(req.url).origin;
 
   switch (action) {
+    case "budget": {
+      // Called before any Claude work; notify is true once per Bangkok day after the cap is hit.
+      const b = await claudeBudget();
+      let notify = false;
+      if (b.over) {
+        const today = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
+        if ((await readState()).lastBudgetNotice !== today) {
+          await writeState({ lastBudgetNotice: today });
+          notify = true;
+        }
+      }
+      return NextResponse.json({ spent: Math.round(b.spent * 100) / 100, budget: b.limit, stop: b.over, notify });
+    }
+
     case "claim": {
       if (!isFlow(body.flow)) return bad("flow must be shopee or story");
       // Hard stop: no new video (either flow) once this month's Claude spend reaches CLAUDE_MONTHLY_BUDGET.
