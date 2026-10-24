@@ -8,6 +8,7 @@ import { requireSession } from "@/lib/dal";
 import { getVideos } from "@/lib/data";
 import { bytes, number, relative, thaiDateTime } from "@/lib/format";
 import { primaryChannelId } from "@/lib/channels";
+import { readDoc } from "@/lib/social";
 import { PLATFORMS, explainError, pending } from "@/lib/posting";
 import { VIDEO_RETENTION_DAYS, storeConfigured, type Video, type VideoStatus } from "@/lib/store";
 
@@ -45,7 +46,11 @@ async function ReviewContent({ searchParams }: { searchParams: Promise<Record<st
   await requireSession();
   const sp = await searchParams;
   const tab = (TABS.find((t) => t.key === sp.status)?.key ?? "review") as VideoStatus | "all";
-  const [res, primary] = await Promise.all([getVideos(), storeConfigured() ? primaryChannelId().catch(() => "") : ""]);
+  const [res, primary, yt] = await Promise.all([
+    getVideos(),
+    storeConfigured() ? primaryChannelId().catch(() => "") : "",
+    storeConfigured() ? readDoc().then((d) => Boolean(d.accounts.youtube)).catch(() => false) : false,
+  ]);
   if (!res.ok) return <InlineError title="โหลดวิดีโอไม่สำเร็จ" detail={res.error} />;
   const counts = res.value.reduce<Record<string, number>>((m, v) => ((m[v.status] = (m[v.status] ?? 0) + 1), m), {});
   const videos = tab === "all" ? res.value : res.value.filter((v) => v.status === tab);
@@ -71,14 +76,14 @@ async function ReviewContent({ searchParams }: { searchParams: Promise<Record<st
         </Card>
       ) : (
         <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
-          {videos.map((v) => <VideoCard key={v.id} v={v} primaryId={primary} />)}
+          {videos.map((v) => <VideoCard key={v.id} v={v} primaryId={primary} youtube={yt} />)}
         </div>
       )}
     </>
   );
 }
 
-function VideoCard({ v, primaryId }: { v: Video; primaryId: string }) {
+function VideoCard({ v, primaryId, youtube }: { v: Video; primaryId: string; youtube: boolean }) {
   const s = STATUS[v.status];
   return (
     <div id={`v-${v.id}`} className="scroll-mt-24 rounded-2xl target:ring-2 target:ring-focus target:ring-offset-2 target:ring-offset-bg">
@@ -139,7 +144,7 @@ function VideoCard({ v, primaryId }: { v: Video; primaryId: string }) {
         {v.note && <p className="rounded-lg bg-bad-soft px-3 py-2 text-xs text-bad">หมายเหตุ: {v.note}</p>}
         <PostStatus v={v} />
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
-          <ReviewActions id={v.id} status={v.status} canPost={v.flow === "story"} tried={Object.keys(v.published ?? {}).some((k) => (PLATFORMS as readonly string[]).includes(k))} retry={v.flow === "story" ? pending(v, primaryId) : []} />
+          <ReviewActions id={v.id} status={v.status} canPost={v.flow === "story"} tried={Object.keys(v.published ?? {}).some((k) => (PLATFORMS as readonly string[]).includes(k))} retry={v.flow === "story" ? pending(v, primaryId, youtube) : []} />
           {v.pathname && (
             <a href={`/api/videos/${v.id}`} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
               <Download className="size-4" /> ดาวน์โหลด
@@ -169,13 +174,14 @@ function PostStatus({ v }: { v: Video }) {
   return (
     <ul className="flex flex-wrap gap-1.5 text-xs">
       {results.map(([k, r]) => {
-        const err = r && typeof r === "object" && "error" in r ? String((r as { error: unknown }).error) : null;
-        const why = err ? explainError(k, err) : null;
-        const skipped = r && typeof r === "object" && "skipped" in r;
+        const rec = (r && typeof r === "object" ? r : {}) as { error?: unknown; skipped?: unknown; note?: unknown };
+        const err = rec.error !== undefined ? String(rec.error) : null;
+        const skipped = rec.skipped !== undefined;
+        const why = err ? explainError(k, err) : skipped ? explainError(k, String(rec.skipped)) : rec.note === "private_until_audit" ? "ขึ้นแบบส่วนตัวจนกว่า YouTube จะอนุมัติแอป" : null;
         return (
           <li key={k} title={err ?? undefined}>
             <Pill tone={err ? "bad" : skipped ? "idle" : "ok"}>{PLATFORM[k]} {err ? "✗" : skipped ? "–" : "✓"}</Pill>
-            {why && <span className="ml-1.5 text-bad">{why}</span>}
+            {why && <span className={cx("ml-1.5", err ? "text-bad" : "text-ink-3")}>{why}</span>}
           </li>
         );
       })}

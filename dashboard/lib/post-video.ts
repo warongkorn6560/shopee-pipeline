@@ -1,5 +1,6 @@
 import "server-only";
 import { primaryChannelId } from "./channels";
+import { readDoc } from "./social";
 import { POST_VIDEO_WORKFLOW } from "./flows";
 import * as gh from "./github";
 import { PLATFORMS, pending } from "./posting";
@@ -16,7 +17,8 @@ export async function requestPost(id: string): Promise<PostResult> {
     // Retry only what hasn't posted yet, so Facebook/Instagram never get a duplicate.
     const v = (await store.list("videos")).find((x) => x.id === id);
     if (!v) return { ok: false, message: "ไม่พบวิดีโอนี้แล้ว" };
-    const todo = pending(v, await primaryChannelId());
+    const [primaryId, social] = await Promise.all([primaryChannelId(), readDoc()]);
+    const todo = pending(v, primaryId, Boolean(social.accounts.youtube));
     if (!todo.length) return { ok: false, message: "โพสต์ครบทุกช่องทางแล้ว" };
     const first = !Object.keys(v.published ?? {}).some((k) => (PLATFORMS as readonly string[]).includes(k));
     if (first && v.postRequestedAt && Date.now() - Date.parse(v.postRequestedAt) < 15 * 60_000) {
