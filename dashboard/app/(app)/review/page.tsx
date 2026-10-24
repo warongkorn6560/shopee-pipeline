@@ -34,7 +34,7 @@ export default function ReviewPage({ searchParams }: PageProps<"/review">) {
     <div className="space-y-6">
       <PageHeader
         title="รีวิววิดีโอ"
-        subtitle={`ทุกคลิปที่ระบบทำเสร็จจะมาอยู่ที่นี่ (และแจ้งใน Telegram) · ไฟล์เก็บ ${VIDEO_RETENTION_DAYS} วัน (โพสต์แล้วเก็บ ${POSTED_RETENTION_DAYS} วัน)`}
+        subtitle={`ทุกคลิปที่ระบบทำเสร็จจะมาอยู่ที่นี่ (และแจ้งใน Telegram) · ไฟล์เก็บ ${VIDEO_RETENTION_DAYS} วัน · โพสต์ครบแล้ว ${POSTED_RETENTION_DAYS} วัน · ยังค้างบางช่องทาง 90 วัน`}
       />
       <Suspense fallback={<Skeleton className="h-[520px] rounded-2xl" />}>
         <ReviewContent searchParams={searchParams} />

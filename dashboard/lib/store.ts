@@ -198,24 +198,34 @@ export async function presignedPlayback(pathname: string, minutes = 120): Promis
 }
 
 /** Delete video files older than the retention window; keeps their records. */
-// Storage guard: posted clips only need their file for a week (retries), the rest
-// for 30 days, and the store never grows past STORE_CAP_BYTES (oldest go first).
+// Storage guard. A clip keeps its MP4 while it may still need posting somewhere:
+//   posted everywhere → 7 days · posted but a platform failed/skipped (e.g. TikTok
+//   awaiting app review) → 90 days · never posted → 30 days.
+// The store never grows past STORE_CAP_BYTES; fully posted clips go first, then the oldest.
 export const POSTED_RETENTION_DAYS = 7;
+const PARTIAL_RETENTION_DAYS = 90;
 const STORE_CAP_BYTES = 2 * 1024 ** 3;
 
-const wasPosted = (v: Video) => v.status === "posted" || Object.values(v.published ?? {}).some(
-  (r) => r && typeof r === "object" && !("error" in r) && !("skipped" in r),
-);
+const results = (v: Video) => Object.values(v.published ?? {}).filter((r) => r && typeof r === "object") as Record<string, unknown>[];
+const wasPosted = (v: Video) => v.status === "posted" || results(v).some((r) => !("error" in r) && !("skipped" in r));
+const hasPending = (v: Video) => results(v).some((r) => "error" in r || "skipped" in r);
+
+function keepDays(v: Video): number {
+  if (!wasPosted(v)) return VIDEO_RETENTION_DAYS;
+  return hasPending(v) ? PARTIAL_RETENTION_DAYS : POSTED_RETENTION_DAYS;
+}
 
 export async function expireOldVideos(): Promise<number> {
   const now = Date.now();
   const files = (await list("videos")).filter((v) => v.pathname).sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
-  const stale = files.filter((v) => {
-    const age = now - Date.parse(v.createdAt);
-    return age > VIDEO_RETENTION_DAYS * 86_400_000 || (wasPosted(v) && age > POSTED_RETENTION_DAYS * 86_400_000);
-  });
+  const stale = files.filter((v) => now - Date.parse(v.createdAt) > keepDays(v) * 86_400_000);
   let total = files.filter((v) => !stale.includes(v)).reduce((t, v) => t + (v.size || 0), 0);
-  for (const v of [...files.filter(wasPosted), ...files.filter((x) => !wasPosted(x))]) {
+  const evictOrder = [
+    ...files.filter((v) => wasPosted(v) && !hasPending(v)),
+    ...files.filter((v) => wasPosted(v) && hasPending(v)),
+    ...files.filter((v) => !wasPosted(v)),
+  ];
+  for (const v of evictOrder) {
     if (total <= STORE_CAP_BYTES) break;
     if (stale.includes(v) || v.status === "review") continue;
     stale.push(v);
