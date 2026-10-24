@@ -3,7 +3,7 @@ name: Video stats
 # Pulls views/engagement for posted story videos into the dashboard; auto-topics learn from them.
 on:
   schedule:
-    - cron: "37 */6 * * *"
+    - cron: "37 * * * *"   # hourly; ~1 min on a free public-repo runner
   workflow_dispatch:
 
 concurrency:

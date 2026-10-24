@@ -6,7 +6,8 @@ import { channels } from "@/lib/channels";
 import { requireSession } from "@/lib/dal";
 import { getVideos, settle } from "@/lib/data";
 import { compact, relative, thaiDate } from "@/lib/format";
-import { PLATFORM_LABEL, STAT_PLATFORMS, cutoff, summary } from "@/lib/stats";
+import { ChartCard, GrowthChart, Legend, TopClipsChart } from "@/components/stats-charts";
+import { PLATFORM_LABEL, STAT_PLATFORMS, cutoff, growth, summary } from "@/lib/stats";
 import { storeConfigured } from "@/lib/store";
 
 export const metadata: Metadata = { title: "สถิติ" };
@@ -20,7 +21,7 @@ const RANGES = [
 export default function StatsPage({ searchParams }: PageProps<"/stats">) {
   return (
     <div className="space-y-6">
-      <PageHeader title="สถิติ" subtitle="ยอดวิวและการมีส่วนร่วมของคลิปเล่าเรื่อง · อัปเดตทุก 6 ชั่วโมง · AI ใช้ข้อมูลนี้เลือกหัวข้อถัดไป" />
+      <PageHeader title="สถิติ" subtitle="ยอดวิวและการมีส่วนร่วมของคลิปเล่าเรื่อง · อัปเดตทุกชั่วโมง · AI ใช้ข้อมูลนี้เลือกหัวข้อถัดไป" />
       <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
         <StatsContent searchParams={searchParams} />
       </Suspense>
@@ -54,6 +55,10 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/stats"
     const views = rs.reduce((t, r) => t + r.views, 0);
     return { style, count: rs.length, avgViews: views / rs.length, rate: views ? rs.reduce((t, r) => t + r.reactions, 0) / views : 0 };
   }).sort((a, b) => b.avgViews - a.avgViews);
+  const points = growth(rows.map((r) => r.v), since);
+  const top = rows.slice(0, 10).map((r) => ({
+    id: r.v.id, title: r.v.title, facebook: r.p.facebook.views, instagram: r.p.instagram.views, youtube: r.p.youtube.views,
+  }));
   const allViews = rows.reduce((t, r) => t + r.views, 0);
   const allReactions = rows.reduce((t, r) => t + r.reactions, 0);
   const href = (q: { range?: string; channel?: string }) => {
@@ -78,9 +83,18 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/stats"
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Total label="รวมทุกช่องทาง" views={allViews} reactions={allReactions} note={`${rows.length} คลิป`} />
-        {totals.map((t) => <Total key={t.k} label={PLATFORM_LABEL[t.k]} views={t.views} reactions={t.reactions} />)}
+        {totals.map((t, i) => <Total key={t.k} label={PLATFORM_LABEL[t.k]} views={t.views} reactions={t.reactions} color={`var(--viz-${i + 1})`} />)}
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ChartCard eyebrow="ยอดวิวสะสม · อัปเดตทุกชั่วโมง" title="การเติบโตของยอดวิว" legend={<Legend />}>
+          <GrowthChart points={points} />
+        </ChartCard>
+        <ChartCard eyebrow="10 อันดับ · แยกตามแพลตฟอร์ม" title="คลิปที่คนดูมากที่สุด" legend={<Legend />}>
+          <TopClipsChart clips={top} />
+        </ChartCard>
       </div>
 
       {byStyle.length > 1 && (
@@ -99,9 +113,9 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/stats"
       )}
 
       <Card>
-        <CardHeader eyebrow="เรียงตามยอดวิวรวม" title="คลิปที่คนดูมากที่สุด" />
+        <CardHeader eyebrow="เรียงตามยอดวิวรวม" title="ตารางทุกคลิป" />
         {rows.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-ink-3">ยังไม่มีสถิติในช่วงนี้ — ระบบดึงตัวเลขจากแต่ละแพลตฟอร์มทุก 6 ชั่วโมงหลังโพสต์</p>
+          <p className="px-5 py-10 text-center text-sm text-ink-3">ยังไม่มีสถิติในช่วงนี้ — ระบบดึงตัวเลขจากแต่ละแพลตฟอร์มทุกชั่วโมงหลังโพสต์</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
@@ -141,10 +155,13 @@ async function StatsContent({ searchParams }: { searchParams: PageProps<"/stats"
   );
 }
 
-function Total({ label, views, reactions, note }: { label: string; views: number; reactions: number; note?: string }) {
+function Total({ label, views, reactions, note, color }: { label: string; views: number; reactions: number; note?: string; color?: string }) {
   return (
     <Card className="p-5">
-      <div className="text-sm text-ink-2">{label}</div>
+      <div className="flex items-center gap-2 text-sm text-ink-2">
+        {color && <span className="size-2.5 rounded-sm" style={{ background: color }} aria-hidden />}
+        {label}
+      </div>
       <div className="mt-2 font-display text-3xl font-semibold tabular text-ink">{compact(views)}</div>
       <div className="mt-1 text-xs text-ink-3">
         วิว · ❤ {compact(reactions)}{views ? ` · ${((reactions / views) * 100).toFixed(1)}%` : ""}{note ? ` · ${note}` : ""}

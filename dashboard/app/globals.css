@@ -28,6 +28,10 @@
   --live: #e5322d;
   --focus: #2b6be6;
   --shadow: 0 1px 2px rgb(15 23 32 / 0.05), 0 8px 24px -12px rgb(15 23 32 / 0.12);
+  /* Chart series (validated categorical slots 1-3): Facebook, Instagram, YouTube */
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -55,6 +59,9 @@
     --live: #ff4d47;
     --focus: #6b9bff;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px -14px rgb(0 0 0 / 0.6);
+    --viz-1: #3987e5;
+    --viz-2: #d95926;
+    --viz-3: #199e70;
     color-scheme: dark;
   }
 }
@@ -84,6 +91,9 @@
   --focus: #6b9bff;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px -14px rgb(0 0 0 / 0.6);
   color-scheme: dark;
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
 }
 
 @theme inline {

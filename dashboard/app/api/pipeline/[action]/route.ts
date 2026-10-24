@@ -41,6 +41,20 @@ function parseCost(raw: unknown): Video["cost"] {
   return { inputTokens: n("inputTokens"), outputTokens: n("outputTokens"), claudeUsd: n("claudeUsd"), ttsChars: n("ttsChars") };
 }
 
+function applyStats(v: Video, raw: Record<string, unknown>) {
+  const s = { ...raw } as unknown as NonNullable<Video["stats"]>;
+  v.stats = { ...s, totalViews: Number(s.totalViews) || 0, engagement: Number(s.engagement) || 0, updatedAt: s.updatedAt || now() };
+  // Keep a history for the growth charts: at most one point per 50 min, last 500 points.
+  const point = {
+    t: now(), fb: Number(s.facebook?.plays) || 0, ig: Number(s.instagram?.views) || 0, yt: Number(s.youtube?.views) || 0,
+  };
+  const h = v.statsHistory ?? [];
+  const last = h[h.length - 1];
+  if (last && Date.parse(point.t) - Date.parse(last.t) < 50 * 60_000) h[h.length - 1] = point;
+  else h.push(point);
+  v.statsHistory = h.slice(-500);
+}
+
 const PRODUCT_PATCH = ["status", "lastError", "videoId", "image"] as const;
 const STORY_PATCH = ["status", "title", "runUrl", "published", "lastError", "videoId"] as const;
 
@@ -186,16 +200,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
       });
     }
 
-    case "video-stats": {
-      if (typeof body.id !== "string" || !body.stats || typeof body.stats !== "object") return bad("id and stats required");
-      const stats = { ...(body.stats as Record<string, unknown>) } as unknown as Video["stats"];
+    case "video-stats":
+    case "video-stats-batch": {
+      // One video ({id, stats}) or many ({items:[{id, stats}]}) in a single write.
+      const updates = (action === "video-stats" ? [body] : Array.isArray(body.items) ? body.items : []) as { id?: unknown; stats?: unknown }[];
+      const valid = updates.filter((u) => typeof u.id === "string" && u.stats && typeof u.stats === "object");
+      if (!valid.length) return bad("id and stats required");
       const found = await mutate("videos", (items) => {
-        const v = items.find((x) => x.id === body.id);
-        if (!v) return false;
-        v.stats = { ...stats!, totalViews: Number(stats!.totalViews) || 0, engagement: Number(stats!.engagement) || 0, updatedAt: stats!.updatedAt || now() };
-        return true;
+        let n = 0;
+        for (const u of valid) {
+          const v = items.find((x) => x.id === u.id);
+          if (!v) continue;
+          applyStats(v, u.stats as Record<string, unknown>);
+          n++;
+        }
+        return n;
       });
-      return found ? NextResponse.json({ ok: true }) : bad("not found", 404);
+      if (action === "video-stats" && !found) return bad("not found", 404);
+      return NextResponse.json({ ok: true, updated: found });
     }
 
     case "video-posted": {

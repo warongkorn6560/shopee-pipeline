@@ -60,6 +60,7 @@ export interface Video {
   published?: Record<string, unknown>;
   cost?: VideoCost;
   stats?: VideoStats;
+  statsHistory?: StatsPoint[]; // one point per stats run (≤ 1/hour), newest last
   style?: string; // editing style the pipeline picked (STORY_STYLE_MIX), e.g. "classic" / "reaction"
   channelId?: string; // story videos: the page it was made for (unset = primary)
   postRequestedAt?: string; // approve → post-video.yml dispatched
@@ -76,6 +77,9 @@ export interface VideoStats {
   engagement: number;
   updatedAt: string;
 }
+
+/** Views per platform at one moment, for the growth charts. */
+export interface StatsPoint { t: string; fb: number; ig: number; yt: number }
 
 /** What one video cost to make, as reported by the pipeline. */
 export interface VideoCost {
