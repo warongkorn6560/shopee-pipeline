@@ -7,6 +7,10 @@ on:
       video_id:
         description: "Video id from the dashboard review page"
         required: true
+      only:
+        description: "Retry only these platforms (comma list: facebook,instagram,tiktok); empty = all"
+        required: false
+        default: ""
 
 concurrency:
   group: post-video-${{ inputs.video_id }}
@@ -33,4 +37,4 @@ jobs:
           TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
           TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
-        run: python -m pipeline.post_video "${{ inputs.video_id }}"
+        run: python -m pipeline.post_video "${{ inputs.video_id }}" "${{ inputs.only }}"
