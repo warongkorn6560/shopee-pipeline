@@ -546,9 +546,12 @@ def _chip_sprite(text: str) -> Image.Image | None:
 
 
 def _punch_sprite(text: str) -> Image.Image | None:
-    t = _text_block(text, FONT_DISPLAY_PATH, 104, YELLOW + (255,), max_w=900, max_lines=2, stroke=10,
+    t = _text_block(text, FONT_DISPLAY_PATH, 104, YELLOW + (255,), max_w=860, max_lines=2, stroke=10,
                     align="center", min_size=60)
-    return t.rotate(3, resample=Image.BICUBIC, expand=True) if t else None
+    if not t:
+        return None
+    t = t.rotate(3, resample=Image.BICUBIC, expand=True)
+    return _scaled(t, (W - 100) / t.width) if t.width > W - 100 else t     # never past the screen edge
 
 
 def _burst_sprite(text: str) -> Image.Image | None:
@@ -591,6 +594,8 @@ class _Reaction:
         self.chip = _chip_sprite(sc.place) if sc.place else None
         self.punch = _punch_sprite(sc.punch) if sc.punch else None
         kind = sc.callout_kind if sc.callout_text else "none"
+        if sc.visual == "year":
+            kind = "none"                     # the animated year counter is already the number
         self.callout = _burst_sprite(sc.callout_text) if kind == "number" else \
             _label_sticker(sc.callout_text) if kind == "label" else None
         self.kind = kind
@@ -608,7 +613,7 @@ class _Reaction:
         out.alpha_composite(av, (W - 40 - 130 - av.width // 2, 60 + 130 - av.height // 2 + bob))
         if self.punch is not None and f >= 2:                        # punch caption pops in
             k = min((f - 2) / 6, 1.0)
-            sp = _scaled(self.punch, 1.35 - 0.35 * _ease(k)) if k < 1 else self.punch
+            sp = _scaled(self.punch, 1.2 - 0.2 * _ease(k)) if k < 1 else self.punch
             out.alpha_composite(sp, ((W - sp.width) // 2, 360 - sp.height // 2 + self.punch.height // 2))
         if self.callout is not None and f >= self.reveal:            # sticker zoom-punch
             k = min((f - self.reveal) / 6, 1.0)
