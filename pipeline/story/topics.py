@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .. import hub
+from ..config import STORY_CHANNEL_ID
 
 READY, PRODUCING, DONE, POSTED, FAILED = "Ready", "Producing", "Done", "Posted", "Failed"
 
@@ -25,7 +26,7 @@ class Topic:
 
 def claim() -> tuple[Topic | None, list[str]]:
     """Next Ready topic (now Producing), plus all previous topics when empty."""
-    res = hub.claim("story")
+    res = hub.claim("story", STORY_CHANNEL_ID)
     item = res.get("item")
     if item:
         return Topic(ref=item["id"], topic=item["topic"], angle=item.get("angle", "")), []
@@ -33,7 +34,7 @@ def claim() -> tuple[Topic | None, list[str]]:
 
 
 def add_auto(topic: str, angle: str) -> Topic:
-    item = hub.create_story(topic, angle, status=PRODUCING, source="auto")
+    item = hub.create_story(topic, angle, status=PRODUCING, source="auto", channel_id=STORY_CHANNEL_ID)
     return Topic(ref=item["id"], topic=topic, angle=angle, source="auto")
 
 
@@ -44,5 +45,5 @@ def update(ref: str | None, **patch) -> None:
 
 def start(topic: str, angle: str = "") -> Topic:
     """Make a specific topic now: reuses its queue entry if one exists."""
-    item = hub.create_story(topic, angle, status=PRODUCING)
+    item = hub.create_story(topic, angle, status=PRODUCING, channel_id=STORY_CHANNEL_ID)
     return Topic(ref=item["id"], topic=item["topic"], angle=item.get("angle", ""), source="cli")

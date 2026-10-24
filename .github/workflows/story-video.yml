@@ -13,13 +13,50 @@ on:
         description: "Target length in seconds for this run (empty = STORY_TARGET_SECONDS)"
         required: false
         default: ""
+      channel:
+        description: "Channel id from the dashboard (fb-<pageId>); empty = every enabled channel, or the primary one when a topic is given"
+        required: false
+        default: ""
 
 concurrency:
   group: story-video
   cancel-in-progress: false
 
 jobs:
+  # One video per connected Facebook Page ("channel" in the dashboard), each with its own theme.
+  # With no channels yet, a single job runs on the GitHub variables as before.
+  channels:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - id: list
+        env:
+          PIPELINE_API_KEY: ${{ secrets.PIPELINE_API_KEY }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL || 'https://pipeline-dashboard-seven-kappa.vercel.app' }}
+          ONLY: ${{ inputs.channel }}
+          TOPIC: ${{ inputs.topic }}
+        run: |
+          res=$(curl -sf -H "Authorization: Bearer $PIPELINE_API_KEY" "$DASHBOARD_URL/api/pipeline/channels" || echo '{}')
+          matrix=$(jq -c --arg only "$ONLY" --arg topic "$TOPIC" '
+            (.primaryId // "") as $p
+            | [(.channels // [])[] | select(.enabled)
+               | {id, theme: (.theme // ""), series: (.seriesName // ""), niche: (.niche // ""),
+                  mode: (.publishMode // ""), primary: (if .id == $p then "true" else "false" end)}]
+            | if $only != "" then map(select(.id == $only))
+              elif $topic != "" then map(select(.primary == "true"))
+              else . end
+            | if length == 0 then [{id: "", theme: "", series: "", niche: "", mode: "", primary: "true"}] else . end
+            | {include: .}' <<<"$res")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "$matrix"
+
   make-story:
+    needs: channels
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.channels.outputs.matrix) }}
     runs-on: ubuntu-latest
     timeout-minutes: 40   # map rendering takes ~5 min; leaves room for slow tile servers
     steps:
@@ -49,7 +86,7 @@ jobs:
           CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
           TTS_MODEL: ${{ vars.TTS_MODEL || 'eleven_v4' }}
           STORY_TARGET_SECONDS: ${{ inputs.seconds || vars.STORY_TARGET_SECONDS || '75' }}
-          STORY_THEME: ${{ vars.STORY_THEME || 'wildlife' }}
+          STORY_THEME: ${{ matrix.theme || vars.STORY_THEME || 'wildlife' }}
           STORY_MUSIC: ${{ vars.STORY_MUSIC }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           TTS_PROVIDER: elevenlabs
@@ -66,9 +103,11 @@ jobs:
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
           TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
           # review = dashboard review page + Telegram (safe default). auto = also post to Facebook/TikTok/IG.
-          PUBLISH_MODE: ${{ vars.STORY_PUBLISH_MODE || 'review' }}
-          STORY_SERIES_NAME: ${{ vars.STORY_SERIES_NAME }}
-          STORY_NICHE: ${{ vars.STORY_NICHE }}
+          PUBLISH_MODE: ${{ matrix.mode || vars.STORY_PUBLISH_MODE || 'review' }}
+          STORY_CHANNEL_ID: ${{ matrix.id }}
+          STORY_CHANNEL_PRIMARY: ${{ matrix.primary }}
+          STORY_SERIES_NAME: ${{ matrix.series || vars.STORY_SERIES_NAME }}
+          STORY_NICHE: ${{ matrix.niche || vars.STORY_NICHE }}
           STORY_IMAGE_PROVIDER: ${{ vars.STORY_IMAGE_PROVIDER || 'wikimedia' }}   # real archival photos only, never AI images of real people
           STORY_AUTO_TOPIC: ${{ vars.STORY_AUTO_TOPIC || 'on' }}
           STORY_VOICE_ID: ${{ vars.STORY_VOICE_ID }}
@@ -84,7 +123,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: story-video
+          name: story-video${{ matrix.id && format('-{0}', matrix.id) || '' }}
           path: |
             output/story_*.mp4
             output/story_latest.json

@@ -45,18 +45,26 @@ def _call(action: str, payload: dict, timeout: int = 60) -> dict:
     raise PlatformError(str(last))
 
 
-def claim(flow: str) -> dict:
-    """Next Ready item for the flow (now marked Producing), or {"item": None, ...}."""
-    return _call("claim", {"flow": flow})
+def claim(flow: str, channel_id: str = "") -> dict:
+    """Next Ready item for the flow (now marked Producing), or {"item": None, ...}.
+    With a channel id, only that channel's stories (and its previous topics) count."""
+    return _call("claim", {"flow": flow, **({"channelId": channel_id} if channel_id else {})})
 
 
 def update(flow: str, item_id: str, **patch) -> None:
     _call("update", {"flow": flow, "id": item_id, "patch": patch})
 
 
-def create_story(topic: str, angle: str, status: str = "Producing", source: str = "manual") -> dict:
+def create_story(topic: str, angle: str, status: str = "Producing", source: str = "manual",
+                 channel_id: str = "") -> dict:
     """Start (or queue) a topic; an existing entry with the same topic is reused."""
-    return _call("stories", {"topic": topic, "angle": angle, "status": status, "source": source})["item"]
+    return _call("stories", {"topic": topic, "angle": angle, "status": status, "source": source,
+                             **({"channelId": channel_id} if channel_id else {})})["item"]
+
+
+def channel_token(channel_id: str) -> dict:
+    """{channelId, pageId, name, token} for a connected Facebook Page channel."""
+    return _call("channel-token", {"channelId": channel_id})
 
 
 def upload_video(flow: str, mp4: Path) -> dict:

@@ -27,9 +27,9 @@ REDIRECT_URI = "https://warongkorn6560.github.io/shopee-pipeline/"
 SCOPES = "pages_show_list,pages_read_engagement,pages_manage_posts"
 
 
-def publish_reel(video: Path, description: str) -> dict:
-    page_id = ENV.get("FACEBOOK_PAGE_ID", "")
-    token = ENV.get("FACEBOOK_PAGE_TOKEN", "")
+def publish_reel(video: Path, description: str, page_id: str = "", token: str = "") -> dict:
+    page_id = page_id or ENV.get("FACEBOOK_PAGE_ID", "")
+    token = token or ENV.get("FACEBOOK_PAGE_TOKEN", "")
     if not (page_id and token):
         return {"skipped": "FACEBOOK_PAGE_ID / FACEBOOK_PAGE_TOKEN not set — run: python -m pipeline.facebook auth"}
 

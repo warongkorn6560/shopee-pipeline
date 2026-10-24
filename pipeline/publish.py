@@ -119,7 +119,17 @@ def publish_story(video: Path, review_text: str, social_caption: str,
         from . import facebook as _fb
         from . import instagram as _ig
         from . import tiktok as _tiktok
-        result["facebook"] = _safe(_fb.publish_reel, video, social_caption)
-        result["tiktok"] = _safe(_tiktok.publish, video, social_caption[:2000])
-        result["instagram"] = _safe(_ig.publish, video, social_caption[:2000])
+        from .config import STORY_CHANNEL_ID, STORY_CHANNEL_PRIMARY
+        if STORY_CHANNEL_ID:
+            # Each dashboard channel is one Facebook Page with its own token.
+            def _page():
+                from . import hub
+                ch = hub.channel_token(STORY_CHANNEL_ID)
+                return _fb.publish_reel(video, social_caption, ch["pageId"], ch["token"])
+            result["facebook"] = _safe(_page)
+        else:
+            result["facebook"] = _safe(_fb.publish_reel, video, social_caption)
+        if STORY_CHANNEL_PRIMARY:  # the single TikTok/Instagram account follows the primary page
+            result["tiktok"] = _safe(_tiktok.publish, video, social_caption[:2000])
+            result["instagram"] = _safe(_ig.publish, video, social_caption[:2000])
     return result
