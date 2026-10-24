@@ -13,6 +13,10 @@ on:
         description: "Target length in seconds for this run (empty = STORY_TARGET_SECONDS)"
         required: false
         default: ""
+      count:
+        description: "Burst: how many videos to make back to back (one after another, each posted when done)"
+        required: false
+        default: "1"
       channel:
         description: "Channel id from the dashboard (fb-<pageId>); empty = every enabled channel, or the primary one when a topic is given"
         required: false
@@ -38,6 +42,7 @@ jobs:
           ONLY: ${{ inputs.channel }}
           TOPIC: ${{ inputs.topic }}
           EVENT: ${{ github.event_name }}
+          COUNT: ${{ inputs.count || '1' }}
           DEFAULT_HOURS: ${{ vars.STORY_POST_HOURS || '19' }}
         run: |
           res=$(curl -sf -H "Authorization: Bearer $PIPELINE_API_KEY" "$DASHBOARD_URL/api/pipeline/channels" || echo '{}')
@@ -54,7 +59,8 @@ jobs:
               elif $topic != "" then map(select(.primary == "true"))
               else . end
             | if length == 0 and ((($res_channels | length) == 0) and ({} | due)) then [{id: "", theme: "", series: "", niche: "", mode: "", primary: "true"}] else . end
-            | {include: .}' --argjson res_channels "$(jq -c '[(.channels // [])[] | select(.enabled)]' <<<"$res")" <<<"$res")
+            | [range(0; ($count | tonumber) | if . < 1 then 1 elif . > 60 then 60 else . end) as $k | .[] | . + {n: ($k + 1 | tostring)}]
+            | {include: .}' --arg count "$COUNT" --argjson res_channels "$(jq -c '[(.channels // [])[] | select(.enabled)]' <<<"$res")" <<<"$res")
           run=$(jq -r 'if (.include | length) > 0 then "true" else "false" end' <<<"$matrix")
           echo "Bangkok hour $hour · run=$run · $matrix"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
@@ -65,7 +71,7 @@ jobs:
     if: needs.channels.outputs.run == 'true'
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1   # one at a time, so auto-topics never collide and posts come out spaced
       matrix: ${{ fromJSON(needs.channels.outputs.matrix) }}
     runs-on: ubuntu-latest
     timeout-minutes: 40   # map rendering takes ~5 min; leaves room for slow tile servers
@@ -133,7 +139,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: story-video${{ matrix.id && format('-{0}', matrix.id) || '' }}
+          name: story-video${{ matrix.id && format('-{0}', matrix.id) || '' }}-${{ matrix.n }}
           path: |
             output/story_*.mp4
             output/story_latest.json
