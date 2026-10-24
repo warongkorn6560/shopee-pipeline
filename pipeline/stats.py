@@ -33,6 +33,8 @@ def _facebook(video_id: str, token: str) -> dict | None:
     out = {}
     r = requests.get(f"{GRAPH}/{video_id}/video_insights", timeout=30,
                      params={"metric": "blue_reels_play_count,post_video_social_actions", "access_token": token})
+    if not r.ok:
+        print(f"    [fb] insights {r.status_code}: {r.json().get('error', {}).get('message', '')[:160]}")
     for m in (r.json().get("data") or []) if r.ok else []:
         val = (m.get("values") or [{}])[0].get("value")
         if m.get("name") == "blue_reels_play_count":
@@ -52,6 +54,8 @@ def _instagram(media_id: str, token: str) -> dict | None:
     for metrics in ("views,reach,likes,comments,shares,saved", "plays,reach,likes,comments,shares,saved"):
         r = requests.get(f"{IG_GRAPH}/{media_id}/insights", timeout=30,
                          params={"metric": metrics, "access_token": token})
+        if not r.ok:
+            print(f"    [ig] insights {r.status_code}: {r.json().get('error', {}).get('message', '')[:160]}")
         if r.ok:
             out = {m["name"]: _num((m.get("values") or [{}])[0].get("value")) for m in r.json().get("data", [])}
             if "plays" in out:
@@ -135,7 +139,8 @@ def collect() -> int:
         stats.update(_totals(stats), updatedAt=dt.datetime.now(dt.timezone.utc).isoformat())
         hub._call("video-stats", {"id": v["id"], "stats": stats})
         updated += 1
-        print(f"  {v.get('title', '')[:40]}: {stats['totalViews']} views · eng {stats['engagement']:.1%}")
+        print(f"  {v.get('title', '')[:40]}: {stats['totalViews']} views · eng {stats['engagement']:.1%} · "
+              + " ".join(f"{p}={s}" for p, s in stats.items() if isinstance(s, dict)))
     print(f"  ✓ updated {updated}")
     return 0
 
