@@ -307,6 +307,21 @@ export async function pickFacebookPage(id: string): Promise<ActionResult> {
   redirect(`/settings?connected=facebook&name=${encodeURIComponent(name)}#social`);
 }
 
+export async function saveMetaSecret(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  await requireSession();
+  const secret = String(form.get("appSecret") ?? "").trim();
+  if (!/^[a-f0-9]{32}$/i.test(secret)) {
+    return { ok: false, message: "App secret ต้องเป็นตัวอักษร 32 ตัว — คัดลอกจาก Meta for Developers → ShopeePipeline → App settings → Basic" };
+  }
+  try {
+    await social.saveMetaSecret(secret);
+  } catch (e) {
+    return fail(e, "บันทึกไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: "บันทึก App secret แล้ว — กดเชื่อมเพจ Facebook ได้เลย" };
+}
+
 export async function saveTiktokApp(_: ActionResult | null, form: FormData): Promise<ActionResult> {
   await requireSession();
   const key = String(form.get("clientKey") ?? "").trim();

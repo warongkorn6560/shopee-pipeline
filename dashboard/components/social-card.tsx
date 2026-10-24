@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Link2, Unlink } from "lucide-react";
-import { disconnectSocial, pickFacebookPage, saveTiktokApp } from "@/app/(app)/actions";
+import { disconnectSocial, pickFacebookPage, saveMetaSecret, saveTiktokApp } from "@/app/(app)/actions";
 import type { Provider } from "@/lib/social";
 import { useToast } from "./toast";
 import { btn, cx } from "./ui";
@@ -72,6 +72,32 @@ export function TiktokAppForm({ saved }: { saved: boolean }) {
       <div className="flex flex-wrap gap-2">
         <input name="clientKey" placeholder="Client key" autoComplete="off" spellCheck={false} className={input} />
         <input name="clientSecret" type="password" placeholder="Client secret" autoComplete="off" spellCheck={false} className={input} />
+        <button type="submit" disabled={pending} className={cx(btn.base, btn.secondary)}>บันทึก</button>
+      </div>
+    </form>
+  );
+}
+
+export function MetaSecretForm({ appId, saved }: { appId: string; saved: boolean }) {
+  const toast = useToast();
+  const [state, action, pending] = useActionState(saveMetaSecret, null);
+  const ref = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (!state) return;
+    toast(state);
+    if (state.ok) ref.current?.reset();
+  }, [state, toast]);
+  return (
+    <form ref={ref} action={action} className="space-y-2">
+      <div className="text-xs text-ink-3">
+        {saved ? "บันทึก App secret แล้ว · ใส่ใหม่ถ้าต้องการเปลี่ยน" : "ใส่ App secret ของแอป ShopeePipeline ก่อน (ครั้งเดียว)"} ·{" "}
+        <a href={`https://developers.facebook.com/apps/${appId}/settings/basic/`} target="_blank" rel="noreferrer" className="underline">
+          เปิดหน้า App settings → Basic → App secret → Show
+        </a>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <input name="appSecret" type="password" placeholder="App secret" autoComplete="off" spellCheck={false}
+          className="min-w-0 flex-1 rounded-xl border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink outline-none focus:border-focus" />
         <button type="submit" disabled={pending} className={cx(btn.base, btn.secondary)}>บันทึก</button>
       </div>
     </form>

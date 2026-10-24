@@ -4,13 +4,13 @@ import { ArrowUpRight, KeyRound } from "lucide-react";
 import { RunButton, ScheduleToggle } from "@/components/controls";
 import { Card, CardHeader, FlowTag, InlineError, PageHeader, Pill, Skeleton, StateIcon, Tally, cx } from "@/components/ui";
 import { ClaudeKeyForm, VoiceSample } from "@/components/ai-card";
-import { ConnectButtons, ConnectResult, TiktokAppForm } from "@/components/social-card";
+import { ConnectButtons, ConnectResult, MetaSecretForm, TiktokAppForm } from "@/components/social-card";
 import { VarField } from "@/components/var-field";
 import { requireSession } from "@/lib/dal";
 import { effective, getSecrets, getVariables, getWorkflows, settle } from "@/lib/data";
 import { FLOWS, SECRETS, VARIABLES, type FlowId } from "@/lib/flows";
 import { REPO, githubConfigured } from "@/lib/github";
-import { connections, type Provider } from "@/lib/social";
+import { META_APP_ID, connections, type Provider } from "@/lib/social";
 import { storeConfigured } from "@/lib/store";
 
 export const metadata: Metadata = { title: "ตั้งค่า" };
@@ -282,7 +282,7 @@ async function Social() {
   const data = store ? await settle(connections()) : null;
   const vars = githubConfigured() ? await getVariables() : null;
   const values = vars?.ok ? vars.value : null;
-  const metaReady = Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET);
+  const view = data?.ok ? data.value : null;
   const modes = FLOWS.map((f) => ({ flow: f, auto: effective(values, f.publishVar) === "auto" }));
   return (
     <Card>
@@ -303,7 +303,7 @@ async function Social() {
       <ul className="mt-3 divide-y divide-line">
         {SOCIAL.map((s) => {
           const acc = data?.ok ? data.value.accounts[s.id] : null;
-          const ready = store && (s.id === "tiktok" ? Boolean(data?.ok && data.value.tiktokApp) : metaReady);
+          const ready = Boolean(view && (s.id === "tiktok" ? view.tiktokApp : s.id === "instagram" ? view.igApp : view.metaApp));
           return (
             <li key={s.id} className="space-y-2.5 px-5 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -320,14 +320,14 @@ async function Social() {
                 </div>
                 <ConnectButtons provider={s.id} connected={Boolean(acc)} ready={Boolean(ready)} />
               </div>
-              {s.id === "tiktok" && <TiktokAppForm saved={Boolean(data?.ok && data.value.tiktokApp)} />}
+              {s.id === "facebook" && !acc && <MetaSecretForm appId={META_APP_ID} saved={Boolean(view?.metaApp)} />}
+              {s.id === "tiktok" && !acc && <TiktokAppForm saved={Boolean(view?.tiktokApp)} />}
             </li>
           );
         })}
       </ul>
       <p className="px-5 pt-1 pb-5 text-xs leading-relaxed text-ink-3">
         เปิดโพสต์อัตโนมัติได้ที่ &ldquo;โหมดการโพสต์&rdquo; ของแต่ละ flow ด้านบน · ตอนโหมด auto ระบบโพสต์ไปทุกบัญชีที่เชื่อมไว้ และยังส่ง Telegram + หน้ารีวิวเหมือนเดิม
-        {!metaReady && " · ต้องตั้ง META_APP_ID / META_APP_SECRET ใน Vercel ก่อนเชื่อม Facebook/Instagram"}
         {" "}· Shopee Video ไม่มี API ต้องอัปโหลดเองเสมอ
       </p>
     </Card>

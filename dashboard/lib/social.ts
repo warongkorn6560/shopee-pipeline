@@ -30,7 +30,7 @@ export interface PendingPage {
 
 interface SocialDoc {
   accounts: Partial<Record<Provider, Account>>;
-  apps?: { tiktok?: { clientKey: string; clientSecret: string } };
+  apps?: { tiktok?: { clientKey: string; clientSecret: string }; meta?: { appSecret: string } };
   pending?: { pages: PendingPage[]; until: number };
 }
 
@@ -58,14 +58,16 @@ export async function connections() {
       return [p, a ? { id: a.id, name: a.name, connectedAt: a.connectedAt, expiresAt: a.expiresAt } : null];
     }),
   ) as Record<Provider, { id: string; name: string; connectedAt: string; expiresAt?: string } | null>;
-  return { accounts: view, tiktokApp: Boolean(tiktokApp(doc)), hasPending: Boolean(doc.pending && doc.pending.until > Date.now()) };
+  return { accounts: view, tiktokApp: Boolean(tiktokApp(doc)), metaApp: Boolean(metaApp(doc)), igApp: Boolean(igApp()), hasPending: Boolean(doc.pending && doc.pending.until > Date.now()) };
 }
 
 // ---------------------------------------------------------------------------
 // App credentials
 // ---------------------------------------------------------------------------
-function metaApp() {
-  const id = process.env.META_APP_ID, secret = process.env.META_APP_SECRET;
+export const META_APP_ID = process.env.META_APP_ID || "27095692366789442";
+
+function metaApp(doc?: SocialDoc) {
+  const id = META_APP_ID, secret = process.env.META_APP_SECRET || doc?.apps?.meta?.appSecret;
   return id && secret ? { id, secret } : null;
 }
 
@@ -83,7 +85,7 @@ function tiktokApp(doc?: SocialDoc) {
 }
 
 export function appReady(p: Provider, doc?: SocialDoc): boolean {
-  return Boolean(p === "tiktok" ? tiktokApp(doc) : p === "instagram" ? igApp() : metaApp());
+  return Boolean(p === "tiktok" ? tiktokApp(doc) : p === "instagram" ? igApp() : metaApp(doc));
 }
 
 export const redirectUri = (origin: string, p: Provider) => `${origin}/api/connect/${p}/callback`;
@@ -91,7 +93,7 @@ export const redirectUri = (origin: string, p: Provider) => `${origin}/api/conne
 export async function authUrl(p: Provider, origin: string, state: string): Promise<string> {
   const redirect_uri = redirectUri(origin, p);
   if (p === "facebook") {
-    const app = metaApp()!;
+    const app = metaApp(await readDoc())!;
     return `https://www.facebook.com/v22.0/dialog/oauth?${new URLSearchParams({
       client_id: app.id, redirect_uri, state, response_type: "code",
       scope: "pages_show_list,pages_read_engagement,pages_manage_posts",
@@ -131,7 +133,7 @@ export async function completeConnect(p: Provider, code: string, origin: string)
   const now = new Date().toISOString();
 
   if (p === "facebook") {
-    const app = metaApp()!;
+    const app = metaApp(doc)!;
     const short = await json<{ access_token: string }>(await fetch(`${GRAPH}/oauth/access_token?${new URLSearchParams({
       client_id: app.id, client_secret: app.secret, redirect_uri, code,
     })}`), "แลก code ไม่สำเร็จ");
@@ -231,6 +233,11 @@ export async function disconnect(p: Provider): Promise<void> {
   const doc = await readDoc();
   delete doc.accounts[p];
   await writeDoc(doc);
+}
+
+export async function saveMetaSecret(appSecret: string): Promise<void> {
+  const doc = await readDoc();
+  await writeDoc({ ...doc, apps: { ...doc.apps, meta: { appSecret } } });
 }
 
 export async function saveTiktokApp(clientKey: string, clientSecret: string): Promise<void> {
