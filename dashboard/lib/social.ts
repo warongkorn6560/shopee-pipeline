@@ -112,7 +112,7 @@ export async function authUrl(p: Provider, origin: string, state: string): Promi
   }
   const app = tiktokApp(await readDoc())!;
   return `https://www.tiktok.com/v2/auth/authorize/?${new URLSearchParams({
-    client_key: app.key, redirect_uri, state, response_type: "code", scope: "user.info.basic,video.publish",
+    client_key: app.key, redirect_uri, state, response_type: "code", scope: "user.info.basic,video.publish", disable_auto_auth: "1",
   })}`;
 }
 
