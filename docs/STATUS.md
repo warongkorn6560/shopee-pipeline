@@ -14,13 +14,13 @@ platform: it holds the queues, receives every finished MP4 for review, and
 controls the workflows. Google Sheets is no longer used (the old sheet is kept
 as a read-only archive). Telegram only notifies, with a link to the review page.
 
-| | Flow A — Shopee Affiliate | Flow B — เรื่องเล่าจากแผนที่ |
+| | Flow A — Shopee Affiliate | Flow B — ย้อนรอยการเมืองไทย (Thai political history) |
 |---|---|---|
-| Workflow | `daily-video.yml` 09:00 BKK | `story-video.yml` 19:00 BKK (optional `topic` input) |
+| Workflow | `daily-video.yml` 09:00 BKK | `story-video.yml` 19:00 BKK (optional `topic` and `seconds` inputs) |
 | Entry point | `python -m pipeline.run` | `python -m pipeline.story` |
 | Input | Dashboard queue → products (first `Ready`) | Dashboard queue → stories (first `Ready`); if empty, AI proposes a new topic |
 | Script | `pipeline/llm.py`: Claude (`CLAUDE_MODEL`, default claude-opus-5-5) when the `ANTHROPIC_API_KEY` secret exists, else Gemini 2.5 Flash-Lite via AI Gateway | Same LLM switch (else GPT-4.1 mini via Gateway), grounded in fetched Wikipedia text |
-| Visuals | Product photo (auto-fetched from the s.shopee short link) + Ken Burns | `story/render.py` + `maps.py`: animated satellite map (EOX s2cloudless 2016, CC BY), OSM geometry via Overpass, Nominatim geocoding, Kanit fonts, music bed + whoosh SFX |
+| Visuals | Product photo (auto-fetched from the s.shopee short link) + Ken Burns | `story/render.py`: Wikimedia Commons archival photos (archival grade) or designed cards — never AI images; animated พ.ศ. year cards + timeline; satellite-map shots via `maps.py` when a beat needs a place; music `politics_bed.mp3` (`STORY_MUSIC`) |
 | Voice | ElevenLabs `eleven_v4`, Thai voice Mali (`SHOP_VOICE_ID`) | ElevenLabs `eleven_v4`, Thai voice Duang (`STORY_VOICE_ID`), TTS-normalized `scene.spoken` text |
 | Output | Upload to dashboard → `/review` + Telegram notice | same |
 | Cost | $0 per video on AI Gateway; Anthropic per-use pricing once a Claude key is saved | same |
@@ -30,10 +30,19 @@ build plus apt `libraqm0` only (apt-installing ffmpeg hung runs for 25+ min), an
 Python step fails fast if Pillow can't shape Thai (raqm). Verified 2026-10-24: Flow A
 run 40031160778 (38s), Flow B run 40031165981 (67s), both delivered to /review + Telegram.
 
+Flow B content guardrails (legal risk: Criminal Code §112, Computer Crime Act, Meta
+political-content rules): prompts put the monarchy/royal family out of scope (reign names
+only as time markers, plus the textbook 2475 phrase), no living-politician-centred topics,
+no active court cases, topics ≥15 years old, Wikipedia-only facts in a neutral tone.
+`writer.write_reviewed_story()` runs a standards-editor pass + one rewrite, and
+`writer.royal_term_hits()` is a deterministic keyword backstop; any failure raises
+ComplianceError → the run fails closed and the topic is marked Failed. Keep
+`STORY_PUBLISH_MODE=review` so a human approves every clip.
+
 Voice note: `eleven_multilingual_v2` has no real Thai support (STT check 65%) —
 `eleven_v4` with native Thai voices scores 100%. Thai voices in the ElevenLabs library:
 Duang `jucSqawHKM1rUNf78oZQ` (story default), Mali `7XW5JhaNn90bnFojQ5DA` (Flow A
-default), Tonce `yq05eeRaHPMGuWTVpqeP`. `story-video.yml` timeout is 40 min (map rendering).
+default), Tonce `yq05eeRaHPMGuWTVpqeP`. `story-video.yml` timeout is 40 min (rendering).
 Dashboard Settings → "AI & เสียง" saves `ANTHROPIC_API_KEY` as an Actions secret (sealed
 box) — the dashboard PAT needs Secrets: Read and write for that.
 
@@ -96,7 +105,7 @@ TELEGRAM_CHAT_ID, PIPELINE_API_KEY; optional ANTHROPIC_API_KEY (Claude) and soci
 1. Facebook Page connect for Flow B auto mode (`python -m pipeline.facebook auth`).
 2. Instagram token expired 2026-08-19; TikTok needs OAuth + app audit for public posts.
 3. Azure portal check if a card was ever attached.
-4. Top up AI Gateway credits only if AI illustrations are wanted in Flow B.
+4. Flow B deliberately uses no AI images (archival photos or cards only).
 
 ## Secrets and local files
 
