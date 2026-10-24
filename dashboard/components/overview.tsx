@@ -2,12 +2,14 @@ import {
   ArrowUpRight, AudioLines, BookOpen, Clapperboard, Download, ImageIcon, Inbox, Map as MapIcon,
   PenLine, Send, type LucideIcon,
 } from "lucide-react";
+import { channels } from "@/lib/channels";
 import { requireSession } from "@/lib/dal";
 import { loadContext } from "@/lib/context";
-import { getRecentRuns, getRunsFor, effective } from "@/lib/data";
+import { getRecentRuns, getRunsFor, effective, settle } from "@/lib/data";
 import { FLOWS, VARIABLES, flowById, type FlowId, type StepKey } from "@/lib/flows";
-import { bytes, nextDailyRun, number, relative, thaiDate, thaiDateTime, timecode } from "@/lib/format";
+import { bytes, hoursLabel, nextAtHours, nextDailyRun, number, parseHours, relative, thaiDate, thaiDateTime, timecode } from "@/lib/format";
 import * as gh from "@/lib/github";
+import { storeConfigured } from "@/lib/store";
 import { attention, runLabel, runTone, stepStatuses } from "@/lib/status";
 import { AutoRefresh, RunButton, ScheduleToggle } from "./controls";
 import { Card, CardHeader, FlowTag, InlineError, Pill, Skeleton, StateIcon, Tally, cx, type Tone } from "./ui";
@@ -53,7 +55,14 @@ export async function FlowPanel({ flowId }: { flowId: FlowId }) {
 
   const mode = effective(ctx.vars, flow.publishVar);
   const modeLabel = VARIABLES.find((v) => v.name === flow.publishVar)?.options?.find((o) => o.value === mode)?.label ?? mode;
-  const next = enabled ? nextDailyRun(primary.cron) : null;
+  // Posting hours: the workflow runs hourly and only makes clips at these Bangkok hours.
+  let hours = primary.hoursVar ? parseHours(effective(ctx.vars, primary.hoursVar)) : [];
+  if (flow.id === "story" && storeConfigured()) {
+    const ch = await settle(channels());
+    const live = ch.ok ? ch.value.channels.filter((c) => c.enabled) : [];
+    if (live.length) hours = [...new Set(live.flatMap((c) => (c.postHours.length ? c.postHours : hours)))].sort((a, b) => a - b);
+  }
+  const next = enabled ? (hours.length ? nextAtHours(hours) : nextDailyRun(primary.cron)) : null;
   const isLive = latest ? latest.status !== "completed" : false;
   const stateTone: Tone = isLive ? "live" : !ctx.github ? "idle" : !wf ? "warn" : enabled ? "ok" : "idle";
   const stateLabel = isLive ? "ON AIR" : !ctx.github ? "ไม่ได้เชื่อม GitHub" : !wf ? "ยังไม่มี workflow" : enabled ? "รันตามเวลา" : "หยุดอยู่";
@@ -93,7 +102,7 @@ export async function FlowPanel({ flowId }: { flowId: FlowId }) {
       <dl className="mx-5 mt-5 grid grid-cols-1 divide-y divide-line rounded-xl border border-line bg-surface-2/60 text-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <div className="px-4 py-3">
           <dt className="eyebrow">ตารางเวลา</dt>
-          <dd className="mt-1 font-medium text-ink">{primary.scheduleLabel}</dd>
+          <dd className="mt-1 font-medium text-ink">{hours.length ? hoursLabel(hours) : primary.scheduleLabel}</dd>
           <dd className="text-xs text-ink-3">{next ? `ถัดไป ${relative(next)}` : enabled === false ? "หยุดอยู่ · กดรันเองได้" : "—"}</dd>
         </div>
         <div className="px-4 py-3">
@@ -306,6 +315,10 @@ export async function HealthPanel() {
   const ctx = await loadContext();
   const e = ctx.eleven;
   const pct = e.ok ? Math.min(e.data!.used / e.data!.limit, 1) : 0;
+  const budget = Number(effective(ctx.vars, "CLAUDE_MONTHLY_BUDGET")) || 100;
+  const spent = ctx.claudeMonth?.usd ?? 0;
+  const cpct = Math.min(spent / budget, 1);
+  const hasClaude = Boolean(ctx.secrets?.has("ANTHROPIC_API_KEY"));
   return (
     <Card className="h-full">
       <CardHeader eyebrow="สด" title="สถานะบริการ" />
@@ -334,9 +347,27 @@ export async function HealthPanel() {
           )}
         </div>
 
+        <div className="rounded-xl border border-line p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-ink">Claude API · เดือนนี้</span>
+            <Pill tone={!hasClaude ? "idle" : cpct > 0.9 ? "bad" : cpct > 0.75 ? "warn" : "ok"}>{hasClaude ? effective(ctx.vars, "CLAUDE_MODEL").replace("claude-", "") : "ยังไม่ใส่ key"}</Pill>
+          </div>
+          <div className="mt-3 flex items-baseline gap-1.5">
+            <span className="font-display text-2xl font-semibold text-ink tabular">${spent.toFixed(2)}</span>
+            <span className="text-xs text-ink-3">/ ${number(budget)} งบต่อเดือน</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-2" role="meter" aria-valuenow={Math.round(cpct * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="ใช้งบ Claude ไปแล้ว">
+            <div className={cx("h-full rounded-full", cpct > 0.9 ? "bg-bad" : cpct > 0.75 ? "bg-warn" : "bg-ok")} style={{ width: `${Math.max(cpct * 100, 1.5)}%` }} />
+          </div>
+          <div className="mt-2 flex justify-between gap-3 text-xs text-ink-3">
+            <span>{ctx.claudeMonth ? `${ctx.claudeMonth.withCost} คลิปที่มีบันทึกค่าใช้จ่าย` : "ไม่ได้เชื่อมคลังข้อมูล"}</span>
+            <span>คิดจาก token ที่ใช้จริงต่อคลิป</span>
+          </div>
+        </div>
+
         <ul className="divide-y divide-line rounded-xl border border-line text-sm">
           <HealthRow
-            label="AI Gateway"
+            label="AI Gateway (สำรอง)"
             tone={ctx.gateway.ok ? (ctx.gateway.data!.balance < 0.5 ? "warn" : "ok") : "idle"}
             value={ctx.gateway.ok ? `$${ctx.gateway.data!.balance.toFixed(2)} เครดิต` : ctx.gateway.configured ? "เช็คไม่ได้" : "ไม่ได้เชื่อม"}
           />
@@ -357,10 +388,25 @@ export async function HealthPanel() {
             value={ctx.github ? (ctx.workflows ? `${ctx.workflows.size} workflows` : "token ใช้ไม่ได้") : "ไม่ได้เชื่อม"}
           />
         </ul>
+
+        <div className="rounded-xl bg-surface-2/60 px-4 py-3">
+          <div className="eyebrow">ไม่มีค่าใช้จ่าย</div>
+          <ul className="mt-1.5 space-y-1 text-xs text-ink-2">
+            {FREE.map((f) => <li key={f}>· {f}</li>)}
+          </ul>
+        </div>
       </div>
     </Card>
   );
 }
+
+const FREE = [
+  "GitHub Actions (repo สาธารณะ)",
+  "Vercel Blob (รวมในแพ็กเกจ Pro)",
+  "Wikimedia · OpenStreetMap · ภาพดาวเทียม EOX",
+  "Telegram",
+  "Meta (Facebook · Instagram) และ TikTok API",
+];
 
 function HealthRow({ label, tone, value, href }: { label: string; tone: Tone; value: string; href?: string }) {
   const body = (

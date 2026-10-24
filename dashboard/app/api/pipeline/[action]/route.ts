@@ -34,6 +34,13 @@ function releaseStale<T extends { status: string; updatedAt: string; lastError?:
   }
 }
 
+function parseCost(raw: unknown): Video["cost"] {
+  if (!raw || typeof raw !== "object") return undefined;
+  const c = raw as Record<string, unknown>;
+  const n = (k: string) => Math.max(0, Number(c[k]) || 0);
+  return { inputTokens: n("inputTokens"), outputTokens: n("outputTokens"), claudeUsd: n("claudeUsd"), ttsChars: n("ttsChars") };
+}
+
 const PRODUCT_PATCH = ["status", "lastError", "videoId", "image"] as const;
 const STORY_PATCH = ["status", "title", "runUrl", "published", "lastError", "videoId"] as const;
 
@@ -167,6 +174,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         sources: Array.isArray(body.sources) ? body.sources.map(String).slice(0, 10) : undefined,
         runUrl: body.runUrl ? String(body.runUrl) : undefined,
         published: (body.published as Record<string, unknown>) ?? undefined,
+        cost: parseCost(body.cost),
         status, createdAt: now(),
       };
       await mutate("videos", (items) => {

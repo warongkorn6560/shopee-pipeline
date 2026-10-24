@@ -10,7 +10,7 @@ import { list, mutate, now, type Channel } from "./store";
 // The first enabled page stays mirrored in FACEBOOK_PAGE_ID / FACEBOOK_PAGE_TOKEN
 // for pipeline runs that don't pass a channel.
 
-export type PublicChannel = Omit<Channel, "tokenEnc">;
+export type PublicChannel = Omit<Channel, "tokenEnc"> & { postHours: number[] };
 
 function key(): Buffer {
   const secret = process.env.CHANNEL_KEY || process.env.SESSION_SECRET;
@@ -35,7 +35,7 @@ function unseal(sealed: string): string {
 function publicView(c: Channel): PublicChannel {
   const { tokenEnc, ...rest } = c;
   void tokenEnc;
-  return rest;
+  return { ...rest, postHours: rest.postHours ?? [] };
 }
 const pickPrimary = (items: Channel[]) => items.find((c) => c.enabled) ?? null;
 
@@ -64,7 +64,7 @@ export async function addFacebookPages(pages: PendingPage[]): Promise<void> {
       }
       items.push({
         id: `fb-${p.id}`, platform: "facebook", pageId: p.id, name: p.name,
-        theme: "wildlife", seriesName: "", niche: "", publishMode: "review", enabled: true,
+        theme: "wildlife", seriesName: "", niche: "", publishMode: "review", postHours: [], enabled: true,
         tokenEnc: seal(p.token), connectedAt: now(), updatedAt: now(),
       });
     }
@@ -72,7 +72,7 @@ export async function addFacebookPages(pages: PendingPage[]): Promise<void> {
   await syncPrimary();
 }
 
-export type ChannelPatch = Partial<Pick<Channel, "theme" | "seriesName" | "niche" | "publishMode" | "enabled">>;
+export type ChannelPatch = Partial<Pick<Channel, "theme" | "seriesName" | "niche" | "publishMode" | "postHours" | "enabled">>;
 
 export async function updateChannel(id: string, patch: ChannelPatch): Promise<string> {
   const before = await primaryChannelId();

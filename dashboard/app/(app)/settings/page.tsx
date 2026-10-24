@@ -13,6 +13,7 @@ import { requireSession } from "@/lib/dal";
 import { effective, getSecrets, getVariables, getWorkflows, settle } from "@/lib/data";
 import { FLOWS, SECRETS, THEME_SERIES, VARIABLES, type FlowId } from "@/lib/flows";
 import { REPO, githubConfigured } from "@/lib/github";
+import { hourText, hoursLabel, parseHours } from "@/lib/format";
 import { META_APP_ID, connections, type Provider } from "@/lib/social";
 import { storeConfigured } from "@/lib/store";
 
@@ -131,6 +132,7 @@ async function AiAndVoice() {
   const hasKey = Boolean(secrets?.ok && secrets.value.has("ANTHROPIC_API_KEY"));
   const values = vars?.ok ? vars.value : null;
   const modelDef = VARIABLES.find((v) => v.name === "CLAUDE_MODEL")!;
+  const budgetDef = VARIABLES.find((v) => v.name === "CLAUDE_MONTHLY_BUDGET")!;
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <Card>
@@ -149,6 +151,8 @@ async function AiAndVoice() {
         <div className="divide-y divide-line">
           <VarField key={`CLAUDE_MODEL:${effective(values, "CLAUDE_MODEL")}`} def={modelDef}
             current={effective(values, "CLAUDE_MODEL")} isSet={Boolean(values?.CLAUDE_MODEL)} disabled={!gh} />
+          <VarField key={`CLAUDE_MONTHLY_BUDGET:${effective(values, "CLAUDE_MONTHLY_BUDGET")}`} def={budgetDef}
+            current={effective(values, "CLAUDE_MONTHLY_BUDGET")} isSet={Boolean(values?.CLAUDE_MONTHLY_BUDGET)} disabled={!gh} />
         </div>
       </Card>
       <Card>
@@ -194,8 +198,9 @@ async function FlowSettings({ flowId }: { flowId: FlowId }) {
 async function Workflows() {
   await requireSession();
   if (!githubConfigured()) return null;
-  const res = await getWorkflows();
+  const [res, vars] = await Promise.all([getWorkflows(), getVariables()]);
   if (!res.ok) return <InlineError title="โหลด workflow ไม่สำเร็จ" detail={res.error} />;
+  const values = vars.ok ? vars.value : null;
   return (
     <Card>
       <CardHeader eyebrow="GitHub Actions" title="ตารางเวลา" />
@@ -210,7 +215,7 @@ async function Workflows() {
                 <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
                   <FlowTag flow={f.id} /> {w.role}
                 </div>
-                <div className="font-mono text-[11px] text-ink-3">{w.file} · {w.scheduleLabel} · {!wf ? "ยังไม่อยู่ใน repo" : on ? "เปิด" : wf.state === "disabled_inactivity" ? "ปิด (ไม่มีความเคลื่อนไหว 60 วัน)" : "ปิด"}</div>
+                <div className="font-mono text-[11px] text-ink-3">{w.file} · {w.hoursVar ? hoursLabel(parseHours(effective(values, w.hoursVar))) : w.scheduleLabel} · {!wf ? "ยังไม่อยู่ใน repo" : on ? "เปิด" : wf.state === "disabled_inactivity" ? "ปิด (ไม่มีความเคลื่อนไหว 60 วัน)" : "ปิด"}</div>
               </div>
               {wf && (
                 <div className="flex gap-2">
@@ -348,7 +353,10 @@ async function Social() {
 async function Channels() {
   await requireSession();
   if (!storeConfigured()) return <InlineError title="ยังไม่ได้เชื่อมคลังข้อมูล" detail="ต้องมี BLOB_READ_WRITE_TOKEN ก่อน" />;
-  const [data, conn] = await Promise.all([settle(channels()), settle(connections())]);
+  const [data, conn, vars] = await Promise.all([
+    settle(channels()), settle(connections()), githubConfigured() ? getVariables() : Promise.resolve(null),
+  ]);
+  const defaultHours = parseHours(effective(vars?.ok ? vars.value : null, "STORY_POST_HOURS")).map(hourText).join(", ");
   if (!data.ok) return <InlineError title="อ่านรายชื่อเพจไม่สำเร็จ" detail={data.error} />;
   const list = data.value.channels;
   const appReady = conn.ok && conn.value.metaApp;
@@ -381,7 +389,7 @@ async function Channels() {
         <div className="mt-3 divide-y divide-line border-t border-line">
           {list.map((c) => (
             <ChannelEditor key={`${c.id}:${c.updatedAt}`} channel={c} themes={themes} primary={c.id === data.value.primaryId}
-              seriesDefault={THEME_SERIES[c.theme] ?? "ค่าของธีม"} />
+              seriesDefault={THEME_SERIES[c.theme] ?? "ค่าของธีม"} defaultHours={defaultHours} />
           ))}
         </div>
       )}

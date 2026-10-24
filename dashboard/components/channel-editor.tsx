@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState, useTransition } from "react";
 import { Save, Trash2 } from "lucide-react";
 import { removeChannel, saveChannel } from "@/app/(app)/actions";
 import type { PublicChannel } from "@/lib/channels";
+import { hourText } from "@/lib/format";
 import { useToast } from "./toast";
 import { Pill, btn, cx } from "./ui";
 
@@ -37,8 +38,8 @@ const MODES: Option[] = [
 const input = "w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-focus";
 
 /** One Facebook page: what it posts about and how. */
-export function ChannelEditor({ channel, themes, primary, seriesDefault }: {
-  channel: PublicChannel; themes: Option[]; primary: boolean; seriesDefault: string;
+export function ChannelEditor({ channel, themes, primary, seriesDefault, defaultHours }: {
+  channel: PublicChannel; themes: Option[]; primary: boolean; seriesDefault: string; defaultHours: string;
 }) {
   const toast = useToast();
   const [state, action, pending] = useActionState(saveChannel, null);
@@ -84,6 +85,20 @@ export function ChannelEditor({ channel, themes, primary, seriesDefault }: {
           <span className="text-sm font-medium text-ink">แนวเนื้อหาเพิ่มเติม</span>
           <input name="niche" defaultValue={channel.niche} maxLength={300} placeholder="ว่าง = แนวของธีม" className={input} />
         </label>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="text-sm font-medium text-ink">เวลาโพสต์ต่อวัน (เวลาไทย)</div>
+        <div className="flex flex-wrap gap-2">
+          {[0, 1, 2].map((i) => (
+            <select key={i} name="postHour" defaultValue={channel.postHours[i] ?? ""} aria-label={`รอบที่ ${i + 1}`}
+              className="rounded-xl border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-focus">
+              <option value="">{i === 0 ? `ใช้เวลากลาง (${defaultHours})` : "— ไม่มีรอบนี้"}</option>
+              {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>รอบ {i + 1} · {hourText(h)}</option>)}
+            </select>
+          ))}
+        </div>
+        <p className="text-xs text-ink-3">วันละ 1–3 คลิป · ระบบเช็กทุกชั่วโมง อาจช้ากว่าเวลาจริง 5–20 นาที · ว่างทั้งหมด = ใช้เวลาจากแท็บ Flow B</p>
       </div>
 
       <div className="space-y-1.5">

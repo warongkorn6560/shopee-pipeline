@@ -58,8 +58,17 @@ export interface Video {
   note?: string;
   runUrl?: string;
   published?: Record<string, unknown>;
+  cost?: VideoCost;
   createdAt: string;
   reviewedAt?: string;
+}
+
+/** What one video cost to make, as reported by the pipeline. */
+export interface VideoCost {
+  inputTokens: number;
+  outputTokens: number;
+  claudeUsd: number;
+  ttsChars: number;
 }
 
 /** A page the story flow publishes to, with its own content settings. */
@@ -72,6 +81,7 @@ export interface Channel {
   seriesName: string; // "" = the theme's default
   niche: string; // "" = the theme's default
   publishMode: "review" | "auto";
+  postHours?: number[]; // Bangkok hours, 1–3; empty = STORY_POST_HOURS
   enabled: boolean;
   tokenEnc: string; // page token, AES-GCM sealed (lib/channels.ts)
   connectedAt: string;

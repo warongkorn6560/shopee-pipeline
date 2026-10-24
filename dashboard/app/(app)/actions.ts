@@ -324,6 +324,8 @@ export async function saveChannel(_: ActionResult | null, form: FormData): Promi
   try {
     name = await channels.updateChannel(id, {
       theme, publishMode, enabled: form.get("enabled") === "on",
+      postHours: [...new Set(form.getAll("postHour").map(String).filter(Boolean).map(Number))]
+        .filter((h) => Number.isInteger(h) && h >= 0 && h <= 23).sort((a, b) => a - b).slice(0, 3),
       seriesName: String(form.get("seriesName") ?? "").trim().slice(0, 60),
       niche: String(form.get("niche") ?? "").trim().slice(0, 300),
     });

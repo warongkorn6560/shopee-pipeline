@@ -6,9 +6,21 @@ import { elevenLabs, gatewayCredits, telegramBot } from "./health";
 import { storeConfigured } from "./store";
 import { getProducts, getRunsFor, getSecrets, getStories, getVariables, getVideos, getWorkflows } from "./data";
 import type { StatusContext } from "./status";
+import type { Video } from "./store";
+
+/** Month-to-date Claude spend (Bangkok calendar month), summed from the per-video cost reports. */
+function claudeThisMonth(videos: Video[]): ClaudeMonth {
+  const month = (d: Date) => new Date(d.getTime() + 7 * 3_600_000).toISOString().slice(0, 7);
+  const now = month(new Date());
+  const mine = videos.filter((v) => month(new Date(v.createdAt)) === now);
+  const priced = mine.filter((v) => v.cost);
+  return { usd: priced.reduce((t, v) => t + v.cost!.claudeUsd, 0), videos: mine.length, withCost: priced.length };
+}
 
 /** Everything the overview needs, fetched in parallel once per request. */
-export const loadContext = cache(async (): Promise<StatusContext & { errors: string[] }> => {
+type ClaudeMonth = { usd: number; videos: number; withCost: number };
+
+export const loadContext = cache(async (): Promise<StatusContext & { errors: string[]; claudeMonth: ClaudeMonth | null }> => {
   const github = githubConfigured();
   const primaries = FLOWS.map((f) => f.workflows.find((w) => w.primary)!.file);
   const hasStore = storeConfigured();
@@ -46,5 +58,6 @@ export const loadContext = cache(async (): Promise<StatusContext & { errors: str
     pendingReviews: videos?.ok ? videos.value.filter((v) => v.status === "review").length : null,
     latest,
     errors,
+    claudeMonth: videos?.ok ? claudeThisMonth(videos.value) : null,
   };
 });

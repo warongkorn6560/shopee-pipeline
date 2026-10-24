@@ -218,6 +218,11 @@ export const VARIABLES: VarDef[] = [
     ],
   },
   {
+    name: "CLAUDE_MONTHLY_BUDGET", label: "งบ Claude ต่อเดือน (USD)", scope: "shared", kind: "text",
+    workflowDefault: "100",
+    help: "ใช้แสดงในการ์ดสถานะบริการเท่านั้น ไม่ได้ตัดการใช้งาน · Opus 5.5 คิด $4 / $20 ต่อล้าน token (เข้า/ออก) ≈ $0.3–0.6 ต่อคลิปเล่าเรื่อง",
+  },
+  {
     name: "CLAUDE_MODEL", label: "โมเดล Claude", scope: "shared", kind: "select",
     workflowDefault: "claude-opus-5-5",
     help: "ใช้เขียนบท วางช็อตแผนที่ และคิดหัวข้อ ทั้งสอง flow เมื่อใส่ Claude key แล้ว",
