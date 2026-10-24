@@ -21,7 +21,7 @@ import json
 import traceback
 import unicodedata
 
-from . import compose, hub, products, scriptwriter, video_gen, voiceover
+from . import compose, hub, llm, products, scriptwriter, video_gen, voiceover
 from .config import (
     COST_CAP_USD, ENV, MONTHLY_BUDGET_USD, OUTPUT_DIR, PUBLISH_MODE, VIDEO_PROVIDER, WORK_DIR,
     estimate_video_cost,
@@ -130,6 +130,7 @@ def run_once(source: str = "platform", dry_run: bool = False, offline: bool = Fa
             pathname=up["pathname"], size=final.stat().st_size, caption=social_caption(plan),
             reviewText=plan.script, link=product.affiliate_url, runUrl=run_url(),
             published=res, status="posted" if posted_somewhere(res) else "review",
+            cost={**llm.USAGE, "ttsChars": len(plan.script)},
         )
         products.mark_done(product, source, up["videoId"])
         spent = _log_spend(product.name, est, str(final))

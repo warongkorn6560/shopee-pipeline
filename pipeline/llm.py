@@ -22,6 +22,19 @@ class LLMError(RuntimeError):
     pass
 
 
+# USD per million tokens (input, output); used to report what each video cost on the Claude bill.
+_PRICES = {"opus": (4.0, 20.0), "sonnet": (3.0, 15.0), "haiku": (1.0, 5.0), "fable": (10.0, 50.0)}
+USAGE = {"inputTokens": 0, "outputTokens": 0, "claudeUsd": 0.0}
+
+
+def _track(model: str, usage) -> None:
+    price = next((v for k, v in _PRICES.items() if k in model), _PRICES["opus"])
+    i, o = usage.input_tokens or 0, usage.output_tokens or 0
+    USAGE["inputTokens"] += i
+    USAGE["outputTokens"] += o
+    USAGE["claudeUsd"] = round(USAGE["claudeUsd"] + i / 1e6 * price[0] + o / 1e6 * price[1], 4)
+
+
 def claude_available() -> bool:
     return bool(ENV.get("ANTHROPIC_API_KEY"))
 
@@ -74,7 +87,8 @@ def _claude(system: str, prompt: str, schema: dict | None, max_tokens: int, effo
         raise LLMError("Claude ran out of output tokens before finishing the JSON.")
     text = next((b.text for b in msg.content if b.type == "text"), "")
     usage = msg.usage
-    print(f"  [llm] {msg.model} · in {usage.input_tokens} / out {usage.output_tokens} tokens")
+    _track(msg.model, usage)
+    print(f"  [llm] {msg.model} · in {usage.input_tokens} / out {usage.output_tokens} tokens · run total ${USAGE['claudeUsd']:.3f}")
     try:
         return json.loads(text if schema else _strip_to_json(text))
     except json.JSONDecodeError as e:
