@@ -77,7 +77,9 @@ def _privacy(headers: dict) -> str:
     """Public when the app is allowed to; unaudited apps may only post SELF_ONLY."""
     r = requests.post("https://open.tiktokapis.com/v2/post/publish/creator_info/query/", headers=headers, timeout=30)
     options = (r.json().get("data") or {}).get("privacy_level_options") or []
-    return "PUBLIC_TO_EVERYONE" if "PUBLIC_TO_EVERYONE" in options else (options[0] if options else "SELF_ONLY")
+    if "PUBLIC_TO_EVERYONE" in options:
+        return "PUBLIC_TO_EVERYONE"
+    return "SELF_ONLY" if "SELF_ONLY" in options or not options else options[0]
 
 
 def post_video(video: Path, title: str, access_token: str) -> str:
@@ -88,6 +90,7 @@ def post_video(video: Path, title: str, access_token: str) -> str:
         "Content-Type": "application/json; charset=UTF-8",
     }
     privacy = _privacy(headers)
+    print(f"    [tiktok] privacy level {privacy}")
 
     # 1) init upload
     r = requests.post(TIKTOK_INIT_URL, headers=headers, json={
