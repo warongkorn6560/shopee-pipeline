@@ -204,7 +204,7 @@ export async function presignedPlayback(pathname: string, minutes = 120): Promis
 // The store never grows past STORE_CAP_BYTES; fully posted clips go first, then the oldest.
 export const POSTED_RETENTION_DAYS = 7;
 const PARTIAL_RETENTION_DAYS = 90;
-const STORE_CAP_BYTES = 2 * 1024 ** 3;
+const STORE_CAP_BYTES = 4 * 1024 ** 3;
 
 const results = (v: Video) => Object.values(v.published ?? {}).filter((r) => r && typeof r === "object") as Record<string, unknown>[];
 const wasPosted = (v: Video) => v.status === "posted" || results(v).some((r) => !("error" in r) && !("skipped" in r));
