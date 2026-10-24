@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 import requests
 
-from ..config import STORY_NICHE, STORY_SERIES_NAME, STORY_TARGET_SECONDS
+from ..config import STORY_NICHE, STORY_SERIES_NAME, STORY_TARGET_SECONDS, STORY_THEME
 from ..llm import generate_json
 
 WIKI_UA = "ShopeePipelineStoryBot/1.0 (https://github.com/warongkorn6560/shopee-pipeline)"
@@ -149,6 +149,122 @@ Propose ONE new episode topic. It must be:
 Write topic (Thai question, ≤ 70 characters) and angle (one Thai sentence: the timeline the episode
 will walk through)."""
 
+# ---------------------------------------------------------------------------
+# Theme: Thai wildlife & nature (STORY_THEME=wildlife, the default)
+# ---------------------------------------------------------------------------
+WILDLIFE_SHOWRUNNER = f"""You are the showrunner of "{STORY_SERIES_NAME}", a Thai Facebook/TikTok page about \
+Thailand's wild animals and nature: one animal, place or natural phenomenon per short documentary \
+episode — what makes it remarkable, where in Thailand it lives, and what is happening to it now — told \
+with real wildlife photos and a satellite map of its home. A Thai narrator reads your script.
+
+What makes short nature videos get shared:
+- A hook that surprises ("รู้ไหม ช้างป่าเขาใหญ่เดินข้ามถนนวันละกี่ครั้ง?", "พะยูนตัวสุดท้ายของอ่าวไทยอยู่ที่ไหน?")
+  — a question people want answered and want to tag friends on.
+- Concrete specifics: sizes, weights, counts, ranges, the national park or province where it lives.
+- One amazing fact per beat, building to the most surprising one.
+- Warm, plain spoken Thai like a friendly nature-documentary host. Short sentences, no filler.
+
+Non-negotiable rules:
+- Only facts supported by the SOURCE NOTES. If figures differ between sources, give the range.
+- Never encourage touching, feeding, chasing, capturing, buying or keeping wild animals; never give
+  directions to nests, dens or exact locations of endangered animals beyond the park/province name.
+- No folk-medicine or health claims about animal parts. No graphic injury or hunting scenes.
+- Respectful about people and communities living near wildlife; no blame.
+- Do not discuss the royal family; use the animal's common Thai name."""
+
+WILDLIFE_STORY_PROMPT = """TOPIC: {topic}
+ANGLE: {angle}
+
+SOURCE NOTES (Wikipedia):
+{notes}
+
+Write the plan for one vertical video of about {seconds} seconds.
+
+BEATS — 7 to 12, in order:
+  1. HOOK: the curiosity question on the best photo of the animal/place. ≤ 2 short sentences.
+  2. WHERE: a map beat showing where in Thailand it lives (national park, sea, province).
+  middle beats: one remarkable fact per beat (size, behaviour, diet, record, history), each with a number.
+  second-to-last: its status today (population, threats, protection) — calm, factual, hopeful if true.
+  last: CTA — ask the comment question, then "กดติดตาม{series}ไว้ แล้วมาดูตัวต่อไปกัน".
+
+FIELDS PER BEAT
+- narration: what viewers read in subtitles (Thai, numbers as digits OK). Put a space between
+  phrases every 8-25 characters, the way Thai is normally spaced, so subtitles break cleanly.
+- spoken: the SAME sentence written for text-to-speech: every number and unit spelled out in Thai
+  words (4,000 กก. → สี่พันกิโลกรัม, พ.ศ. 2535 → พุทธศักราชสองพันห้าร้อยสามสิบห้า), no symbols,
+  no English abbreviations, no emoji. All spoken text together: {chars_min}-{chars_max} Thai characters.
+- card_title: big title on the card, max 14 characters (the animal, a place, or a number).
+- card_subtitle: max 34 characters.
+- card_fact: max 34 characters, one number fact, or "".
+- shot — choose the visual that best proves the sentence:
+  "photo": a real wildlife/nature photo. Set photo_query to 2-5 ENGLISH Wikimedia Commons keywords
+     naming the species or place exactly (e.g. "Asian elephant Khao Yai", "Dugong", "Great hornbill",
+     "Siamese crocodile", "Huai Kha Khaeng"). About half the beats or more.
+  "map": where it lives — fill focus/labels/spans as below. 1-3 per video.
+  "year": an animated year card only for a key date (e.g. when it was protected or rediscovered):
+     year = Buddhist-era year as a number, card_title = the date text. 0-1 per video.
+  Use year = 0 and photo_query = "" when they don't apply.
+- focus (map beats): real places with names as in OpenStreetMap Thailand (Thai), e.g.
+  {{"name": "อุทยานแห่งชาติเขาใหญ่", "kind": "area", "style": "area", "number": ""}},
+  {{"name": "เกาะลิบง", "kind": "place", "style": "pin", "number": "1"}}.
+  kind: waterway | road | railway | admin_area | area | place. style: line | area | pin. [] if none.
+- labels (map beats): 2-6 Thai place names for orientation. [] otherwise.
+- span_start_km / span_end_km (map beats): map width at start/end; park scale ~20-80, region ~150-400,
+  country ~600-1200. Use 30 and 15 when not a map beat.
+
+REGION: lon/lat box (west, south, east, north) containing the map places (Thailand if none).
+
+ALSO
+- title: video title, max 40 characters.
+- hook_title (max 14) + hook_subtitle (max 32): the opening card.
+- post_caption: 1-2 short curiosity lines for the Facebook post, then the comment question and
+  "คอมเมนต์บอกกันหน่อย 👇". No hashtags here.
+- comment_question: a fun question viewers answer (e.g. "เคยเห็นตัวจริงที่ไหนบ้าง?").
+- hashtags: 5 hashtags starting with #, including #{series_tag}."""
+
+WILDLIFE_TOPIC_PROMPT = """Series: {series}
+Niche: {niche}
+
+Already covered (do not repeat or closely paraphrase):
+{previous}
+
+Propose ONE new episode topic. It must be:
+- One wild animal, plant, natural place or phenomenon found in Thailand (mammals, birds, reptiles,
+  marine life, insects, national parks, caves, reefs, migrations), well documented on Wikipedia.
+- Something Thai viewers have heard of but don't really know, or a surprising species they never knew
+  lives in Thailand.
+- A curiosity question ("ทำไม…?", "…ใหญ่แค่ไหน?", "…เหลืออยู่กี่ตัว?", "…อยู่ที่ไหน?").
+- Not a species named after a member of the royal family.
+Write topic (Thai question, ≤ 70 characters) and angle (one Thai sentence: what the episode reveals)."""
+
+WILDLIFE_COMPLIANCE_RULES = """1. Accuracy: every factual claim must be plausible for the cited sources: {sources}
+2. No encouraging touching, feeding, chasing, capturing, buying or keeping wild animals; no exact
+   locations of nests/dens of endangered animals beyond the park or province.
+3. No folk-medicine or health claims about animal parts; no graphic injury or hunting.
+4. Respectful toward local communities; no blame.
+5. No discussion of the royal family."""
+
+POLITICS_COMPLIANCE_RULES = """1. Monarchy out of scope: no discussion of any king or royal family member, their actions, roles or
+   opinions. Allowed only: reign names as time markers ("สมัยรัชกาลที่ 7") and the textbook phrase
+   "เปลี่ยนแปลงการปกครองเป็นระบอบประชาธิปไตยอันมีพระมหากษัตริย์ทรงเป็นประมุข".
+2. Neutral: no judgement of who was right, no loaded or emotive words, no endorsing or attacking any
+   party, movement or person.
+3. Living people: only documented public roles/actions; nothing about motives or character.
+4. No current election campaigning, no active court cases, no calls to action except follow/comment.
+5. No graphic violence.
+6. Every factual claim must be plausible for the cited sources: {sources}"""
+
+THEMES = {
+    "wildlife": {"showrunner": WILDLIFE_SHOWRUNNER, "story": WILDLIFE_STORY_PROMPT, "topic": WILDLIFE_TOPIC_PROMPT,
+                 "rules": WILDLIFE_COMPLIANCE_RULES, "page": "a Thai wildlife and nature page",
+                 "topic_system": "You plan episodes for a Thai wildlife and nature page. Every topic is well documented."},
+    "politics": {"showrunner": SHOWRUNNER, "story": STORY_PROMPT, "topic": TOPIC_PROMPT,
+                 "rules": POLITICS_COMPLIANCE_RULES, "page": "a Thai political-history page",
+                 "topic_system": "You plan episodes for a neutral Thai political-history page. Every topic is documented history."},
+}
+THEME = THEMES.get(STORY_THEME, THEMES["wildlife"])
+
+
 @dataclass
 class StoryScene:
     narration: str
@@ -237,8 +353,8 @@ def research(topic: str, angle: str) -> list[tuple[str, str]]:
 
 def propose_topic(previous: list[str]) -> tuple[str, str]:
     data = generate_json(
-        "You plan episodes for a neutral Thai political-history page. Every topic is documented history.",
-        TOPIC_PROMPT.format(series=STORY_SERIES_NAME, niche=STORY_NICHE,
+        THEME["topic_system"],
+        THEME["topic"].format(series=STORY_SERIES_NAME, niche=STORY_NICHE,
                             previous="\n".join(f"- {p}" for p in previous[-80:]) or "- (none yet)"),
         schema=TOPIC_SCHEMA, max_tokens=2000, effort="low", gateway_model="openai/gpt-4.1-mini",
     )
@@ -286,8 +402,8 @@ def write_story(topic: str, angle: str = "") -> StoryPlan:
     seconds = STORY_TARGET_SECONDS
     series_tag = STORY_SERIES_NAME.replace(" ", "")
     data = generate_json(
-        SHOWRUNNER,
-        STORY_PROMPT.format(topic=topic, angle=angle or "-", notes=notes_text, seconds=seconds,
+        THEME["showrunner"],
+        THEME["story"].format(topic=topic, angle=angle or "-", notes=notes_text, seconds=seconds,
                             chars_min=int(seconds * CHARS_PER_SECOND * 0.85),
                             chars_max=int(seconds * CHARS_PER_SECOND * 1.1),
                             series=STORY_SERIES_NAME, series_tag=series_tag),
@@ -310,20 +426,12 @@ def write_story(topic: str, angle: str = "") -> StoryPlan:
 
 
 COMPLIANCE_SCHEMA = _obj({"pass": {"type": "boolean"}, "issues": {"type": "array", "items": _S}})
-COMPLIANCE_SYSTEM = """You are the standards editor of a Thai political-history page. You check a draft
+COMPLIANCE_SYSTEM = f"""You are the standards editor of {THEME["page"]}. You check a draft
 video script before it is produced and you are strict: when in doubt, fail it."""
 COMPLIANCE_PROMPT = """Check this draft against every rule. Fail it if ANY rule is broken.
 
 RULES
-1. Monarchy out of scope: no discussion of any king or royal family member, their actions, roles or
-   opinions. Allowed only: reign names as time markers ("สมัยรัชกาลที่ 7") and the textbook phrase
-   "เปลี่ยนแปลงการปกครองเป็นระบอบประชาธิปไตยอันมีพระมหากษัตริย์ทรงเป็นประมุข".
-2. Neutral: no judgement of who was right, no loaded or emotive words, no endorsing or attacking any
-   party, movement or person.
-3. Living people: only documented public roles/actions; nothing about motives or character.
-4. No current election campaigning, no active court cases, no calls to action except follow/comment.
-5. No graphic violence.
-6. Every factual claim must be plausible for the cited sources: {sources}
+""" + THEME["rules"] + """
 
 DRAFT
 Title: {title}

@@ -49,7 +49,8 @@ jobs:
           CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
           TTS_MODEL: ${{ vars.TTS_MODEL || 'eleven_v4' }}
           STORY_TARGET_SECONDS: ${{ inputs.seconds || vars.STORY_TARGET_SECONDS || '75' }}
-          STORY_MUSIC: ${{ vars.STORY_MUSIC || 'politics_bed.mp3' }}
+          STORY_THEME: ${{ vars.STORY_THEME || 'wildlife' }}
+          STORY_MUSIC: ${{ vars.STORY_MUSIC }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           TTS_PROVIDER: elevenlabs
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

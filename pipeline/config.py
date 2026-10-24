@@ -45,7 +45,7 @@ _ENV_KEYS = (
     "STORY_AUTO_TOPIC", "STORY_VOICE_ID", "STORY_LLM_MODEL", "STORY_MAX_AI_IMAGES",
     "GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
     "DASHBOARD_URL", "PIPELINE_API_KEY",
-    "CLAUDE_MODEL", "CLAUDE_EFFORT", "TTS_MODEL", "SHOP_VOICE_ID", "STORY_TARGET_SECONDS", "STORY_MUSIC",
+    "CLAUDE_MODEL", "CLAUDE_EFFORT", "TTS_MODEL", "SHOP_VOICE_ID", "STORY_TARGET_SECONDS", "STORY_MUSIC", "STORY_THEME",
 )
 
 
@@ -164,13 +164,22 @@ STATUS_FAILED = "Failed"
 # ---------------------------------------------------------------------------
 # Flow B — storytelling / edutainment
 # ---------------------------------------------------------------------------
-STORY_SERIES_NAME = _get("STORY_SERIES_NAME", "ย้อนรอยการเมืองไทย")
-STORY_NICHE = _get(
-    "STORY_NICHE",
-    "เล่าประวัติศาสตร์การเมืองไทยแบบเป็นกลาง: การเปลี่ยนแปลงการปกครอง รัฐธรรมนูญ การเลือกตั้ง นายกรัฐมนตรี "
-    "รัฐสภา พรรคการเมือง และเหตุการณ์สำคัญที่ผ่านมาแล้วอย่างน้อย 15 ปี ด้วยภาพเอกสารจริง ไทม์ไลน์ และแผนที่",
-)
-STORY_MUSIC = _get("STORY_MUSIC", "politics_bed.mp3")   # file in assets/music/story
+# wildlife (default): Thai animals & nature · politics: neutral Thai political history (review mode advised)
+STORY_THEME = _get("STORY_THEME", "wildlife").lower()
+_THEME_DEFAULTS = {
+    "wildlife": ("สัตว์ไทยน่ารู้",
+                 "เรื่องสัตว์ป่า สัตว์ทะเล และธรรมชาติในประเทศไทย: ชนิดพันธุ์ที่น่าทึ่ง ถิ่นอาศัยในอุทยานแห่งชาติ "
+                 "สถิติแปลก ๆ และสถานะการอนุรักษ์ ด้วยภาพจริงและแผนที่ดาวเทียม",
+                 "wildlife_bed.mp3"),
+    "politics": ("ย้อนรอยการเมืองไทย",
+                 "เล่าประวัติศาสตร์การเมืองไทยแบบเป็นกลาง: การเปลี่ยนแปลงการปกครอง รัฐธรรมนูญ การเลือกตั้ง นายกรัฐมนตรี "
+                 "รัฐสภา พรรคการเมือง และเหตุการณ์สำคัญที่ผ่านมาแล้วอย่างน้อย 15 ปี ด้วยภาพเอกสารจริง ไทม์ไลน์ และแผนที่",
+                 "politics_bed.mp3"),
+}
+_theme = _THEME_DEFAULTS.get(STORY_THEME, _THEME_DEFAULTS["wildlife"])
+STORY_SERIES_NAME = _get("STORY_SERIES_NAME", _theme[0])
+STORY_NICHE = _get("STORY_NICHE", _theme[1])
+STORY_MUSIC = _get("STORY_MUSIC", _theme[2])   # file in assets/music/story
 # auto      : AI illustration for "scene" visuals when available, real Wikimedia
 #             Commons images for maps/photos, designed text cards as last resort
 # wikimedia : Wikimedia Commons only (+ cards)

@@ -3,7 +3,7 @@
 Password-protected dashboard for both video flows in this repo:
 
 - **Flow A — Shopee Affiliate** (`.github/workflows/daily-video.yml`, `scrape.yml`)
-- **Flow B — ย้อนรอยการเมืองไทย** (Thai political history) (`.github/workflows/story-video.yml`)
+- **Flow B — story videos** (theme `STORY_THEME`: Thai wildlife by default, or Thai political history) (`.github/workflows/story-video.yml`)
 
 It runs workflows, pauses/resumes their schedules, edits the GitHub Actions
 variables the pipeline reads, manages the product/topic queues and the video
