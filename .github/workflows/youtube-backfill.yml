@@ -1,19 +1,25 @@
-name: YouTube backfill
+name: Backfill posts
 
-# Daily: upload posted story videos that never reached YouTube (quota allows ~6 uploads/day;
-# 3 here leaves room for the day's new clips).
+# Posts already-published story videos to platforms they missed, a few at a time:
+#  - YouTube: 3 a day at 03:15 (the API quota allows ~6 uploads/day; the rest is for new clips)
+#  - Instagram: 1 every 3 hours (bursts trip Instagram's "too many actions" throttle)
 on:
   schedule:
-    - cron: "15 20 * * *"   # 03:15 Asia/Bangkok
+    - cron: "15 20 * * *"     # 03:15 Asia/Bangkok — YouTube
+    - cron: "40 */3 * * *"    # every 3 hours — Instagram
   workflow_dispatch:
     inputs:
+      platform:
+        description: "youtube or instagram"
+        required: false
+        default: "youtube"
       max:
-        description: "How many to upload"
+        description: "How many to post"
         required: false
         default: "3"
 
 concurrency:
-  group: youtube-backfill
+  group: backfill-posts
   cancel-in-progress: false
 
 jobs:
@@ -31,7 +37,14 @@ jobs:
         env:
           PIPELINE_API_KEY: ${{ secrets.PIPELINE_API_KEY }}
           DASHBOARD_URL: ${{ vars.DASHBOARD_URL || 'https://pipeline-dashboard-seven-kappa.vercel.app' }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-        run: python -m pipeline.youtube_backfill "${{ inputs.max || '3' }}"
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "${{ github.event.schedule }}" = "15 20 * * *" ]; then platform=youtube; max=3; else platform=instagram; max=1; fi
+          else
+            platform="${{ inputs.platform || 'youtube' }}"; max="${{ inputs.max || '3' }}"
+          fi
+          python -m pipeline.youtube_backfill "$max" "$platform"
