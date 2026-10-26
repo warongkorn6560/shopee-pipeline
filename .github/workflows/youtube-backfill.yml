@@ -1,12 +1,12 @@
 name: Backfill posts
 
 # Posts already-published story videos to platforms they missed, a few at a time:
-#  - YouTube: 3 a day at 03:15 (the API quota allows ~6 uploads/day; the rest is for new clips)
-#  - Instagram: 1 every 3 hours (bursts trip Instagram's "too many actions" throttle)
+#  - YouTube: 4 a day at 03:15 (the API quota allows ~6 uploads/day; 2 stay free for the day's new clips)
+#  - Instagram: 1 every 2 hours (bursts trip Instagram's "too many actions" throttle)
 on:
   schedule:
     - cron: "15 20 * * *"     # 03:15 Asia/Bangkok — YouTube
-    - cron: "40 */3 * * *"    # every 3 hours — Instagram
+    - cron: "40 */2 * * *"    # every 2 hours — Instagram
   workflow_dispatch:
     inputs:
       platform:
@@ -43,7 +43,7 @@ jobs:
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            if [ "${{ github.event.schedule }}" = "15 20 * * *" ]; then platform=youtube; max=3; else platform=instagram; max=1; fi
+            if [ "${{ github.event.schedule }}" = "15 20 * * *" ]; then platform=youtube; max=4; else platform=instagram; max=1; fi
           else
             platform="${{ inputs.platform || 'youtube' }}"; max="${{ inputs.max || '3' }}"
           fi
