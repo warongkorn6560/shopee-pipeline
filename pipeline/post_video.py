@@ -23,6 +23,10 @@ from .run import posted_somewhere
 
 
 def main(video_id: str, only: str = "") -> int:
+    return 0 if posted_somewhere(publish_video(video_id, only)) else 1
+
+
+def publish_video(video_id: str, only: str = "") -> dict:
     """`only`: comma list of platforms to (re)try, e.g. "instagram,tiktok"; empty = all."""
     want = {p.strip() for p in only.split(",") if p.strip()} or {"facebook", "instagram", "tiktok", "youtube"}
     v = hub._call("video", {"id": video_id})
@@ -48,7 +52,7 @@ def main(video_id: str, only: str = "") -> int:
                 res["youtube"] = _safe(youtube.publish, mp4, v.get("title", ""), caption)
     print(f"  publish: {res}")
     hub._call("video-posted", {"id": video_id, "published": res, "posted": posted_somewhere(res)})
-    return 0 if posted_somewhere(res) else 1
+    return res
 
 
 if __name__ == "__main__":

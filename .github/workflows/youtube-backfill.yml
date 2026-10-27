@@ -1,8 +1,9 @@
 name: Backfill posts
 
 # Posts already-published story videos to platforms they missed, a few at a time:
-#  - YouTube: 4 a day at 03:15 (the API quota allows ~6 uploads/day; 2 stay free for the day's new clips)
-#  - Instagram: 1 every 2 hours (bursts trip Instagram's "too many actions" throttle)
+#  - YouTube: once a day at 03:15, until the channel's daily upload limit says stop
+#  - Instagram: each run posts up to 4, 30 minutes apart (bursts trip Instagram's "too many
+#    actions" throttle). GitHub often skips scheduled runs, so each run does several.
 on:
   schedule:
     - cron: "15 20 * * *"     # 03:15 Asia/Bangkok — YouTube
@@ -17,6 +18,10 @@ on:
         description: "How many to post"
         required: false
         default: "3"
+      gap:
+        description: "Minutes between posts"
+        required: false
+        default: "30"
 
 concurrency:
   group: backfill-posts
@@ -25,7 +30,7 @@ concurrency:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,8 +48,8 @@ jobs:
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            if [ "${{ github.event.schedule }}" = "15 20 * * *" ]; then platform=youtube; max=4; else platform=instagram; max=1; fi
+            if [ "${{ github.event.schedule }}" = "15 20 * * *" ]; then platform=youtube; max=8; gap=2; else platform=instagram; max=4; gap=30; fi
           else
-            platform="${{ inputs.platform || 'youtube' }}"; max="${{ inputs.max || '3' }}"
+            platform="${{ inputs.platform || 'youtube' }}"; max="${{ inputs.max || '3' }}"; gap="${{ inputs.gap || '30' }}"
           fi
-          python -m pipeline.youtube_backfill "$max" "$platform"
+          python -m pipeline.youtube_backfill "$max" "$platform" "$gap"
