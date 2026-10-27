@@ -155,7 +155,7 @@ def structure_issues(plan: MysteryPlan) -> list[str]:
 
 
 def write_mystery(topic: str, angle: str = "") -> MysteryPlan:
-    seconds = min(STORY_TARGET_SECONDS, 70)
+    seconds = min(STORY_TARGET_SECONDS, 55)          # narrators run slower than CHARS_PER_SECOND on suspense lines
     feedback = angle
     for attempt in range(3):
         data = generate_json(

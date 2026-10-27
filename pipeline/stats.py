@@ -157,11 +157,15 @@ def collect() -> int:
 
 
 def performance(limit: int = 5) -> tuple[list[str], list[str]]:
-    """(best, worst) clip descriptions for the topic writer; empty when unknown."""
+    """(best, worst) clips of this run's channel for the topic writer; empty when unknown. Only the
+    channel's own clips: another channel's best performers are on another theme."""
+    from .config import STORY_CHANNEL_ID, STORY_CHANNEL_PRIMARY
     try:
         videos = hub._call("videos-list", {"flow": "story", "days": 60}).get("videos", [])
     except Exception:  # noqa: BLE001 — feedback is optional
         return [], []
+    mine = {STORY_CHANNEL_ID} | ({""} if STORY_CHANNEL_PRIMARY or not STORY_CHANNEL_ID else set())
+    videos = [v for v in videos if (v.get("channelId") or "") in mine]
     rated = [v for v in videos if (v.get("stats") or {}).get("totalViews")]
     if len(rated) < 6:
         return [], []
