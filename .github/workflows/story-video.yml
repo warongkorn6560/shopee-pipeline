@@ -137,8 +137,9 @@ jobs:
           PUBLISH_MODE: ${{ inputs.preview && 'review' || matrix.mode || vars.STORY_PUBLISH_MODE || 'review' }}
           STORY_CHANNEL_ID: ${{ matrix.id }}
           STORY_CHANNEL_PRIMARY: ${{ matrix.primary }}
-          STORY_SERIES_NAME: ${{ matrix.series || vars.STORY_SERIES_NAME }}
-          STORY_NICHE: ${{ matrix.niche || vars.STORY_NICHE }}
+          # the global series/niche belong to the global theme; a channel on another theme uses its own or the theme default
+          STORY_SERIES_NAME: ${{ matrix.series || ((matrix.theme == '' || matrix.theme == vars.STORY_THEME) && vars.STORY_SERIES_NAME || '') }}
+          STORY_NICHE: ${{ matrix.niche || ((matrix.theme == '' || matrix.theme == vars.STORY_THEME) && vars.STORY_NICHE || '') }}
           STORY_IMAGE_PROVIDER: ${{ vars.STORY_IMAGE_PROVIDER || 'wikimedia' }}   # real archival photos only, never AI images of real people
           STORY_AUTO_TOPIC: ${{ vars.STORY_AUTO_TOPIC || 'on' }}
           STORY_VOICE_ID: ${{ vars.STORY_VOICE_ID }}
