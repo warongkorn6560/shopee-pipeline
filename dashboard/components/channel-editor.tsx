@@ -38,8 +38,8 @@ const MODES: Option[] = [
 const input = "w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-focus";
 
 /** One Facebook page: what it posts about and how. */
-export function ChannelEditor({ channel, themes, primary, seriesDefault, nicheDefault, defaultHours }: {
-  channel: PublicChannel; themes: Option[]; primary: boolean; seriesDefault: string; nicheDefault: string; defaultHours: string;
+export function ChannelEditor({ channel, themes, primary, primaryTargets, seriesDefault, nicheDefault, defaultHours }: {
+  channel: PublicChannel; themes: Option[]; primary: boolean; primaryTargets: string[]; seriesDefault: string; nicheDefault: string; defaultHours: string;
 }) {
   const toast = useToast();
   const [state, action, pending] = useActionState(saveChannel, null);
@@ -75,6 +75,12 @@ export function ChannelEditor({ channel, themes, primary, seriesDefault, nicheDe
         </label>
       </div>
 
+      {primary && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2 text-sm text-ink-2">
+          <Camera className="size-4 shrink-0" />
+          คลิปของช่องนี้โพสต์ไปที่: <span className="font-medium text-ink">{primaryTargets.join(" · ")}</span>
+        </div>
+      )}
       {!primary && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2 text-sm">
           <span className="flex min-w-0 items-center gap-2 text-ink-2">
