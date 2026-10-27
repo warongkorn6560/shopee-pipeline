@@ -25,7 +25,7 @@ from ..config import (
 )
 from ..publish import publish_story
 from ..run import _log_spend, _silent_voice, _slug, posted_somewhere, run_url
-from . import images, maps, render, sim, sim_render, topics, writer
+from . import images, maps, mystery, mystery_render, render, sim, sim_render, topics, writer
 
 def scene_durations(texts: list[str], alignment: dict | None, audio_len: float,
                     tail: float = 1.4) -> list[float]:
@@ -52,7 +52,9 @@ def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str
     tags = " ".join(plan.hashtags)
     sources = " · ".join(plan.sources)
     social = f"{plan.post_caption}\n\n{tags}"
-    if plan.style == "sim":
+    if plan.style == "mystery":
+        social += f"\n\n📖 {mystery.FICTION}"
+    elif plan.style == "sim":
         assumptions = " · ".join(getattr(plan, "assumptions", []) or [])
         if assumptions:
             social += f"\n\n🧮 สมมติฐาน: {assumptions}"
@@ -71,8 +73,8 @@ def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str
 
 def _pick_style() -> str:
     """Weighted pick from STORY_STYLE_MIX ("classic:80,reaction:20"); STORY_STYLE forces one."""
-    if STORY_THEME == "money":
-        return "sim"                     # the money theme has its own renderer, no maps or photos
+    if STORY_THEME in ("money", "mystery"):    # these themes have their own renderers, no maps or photos
+        return {"money": "sim", "mystery": "mystery"}[STORY_THEME]
     known = ("classic", "reaction")
     if STORY_STYLE in known:
         return STORY_STYLE
@@ -146,10 +148,11 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         style = _pick_style()
         print(f"  style: {style}")
         if offline:
-            plan = sim.mock_sim_story(topic.topic) if style == "sim" else writer.mock_story(topic.topic)
+            plan = (sim.mock_sim_story(topic.topic) if style == "sim" else
+                    mystery.mock_mystery(topic.topic) if style == "mystery" else writer.mock_story(topic.topic))
         else:
             plan = writer.write_reviewed_story(topic.topic, topic.angle, style)
-        if offline and style != "sim":
+        if offline and style not in ("sim", "mystery"):
             plan.style = style
         print(f"  title: {plan.title} · {len(plan.scenes)} beats · {len(plan.spoken)} spoken chars")
         if dry_run:
@@ -181,8 +184,9 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         print(f"  narration {audio_len:.1f}s → beats {[round(d, 1) for d in durs]}")
 
         out_name = f"story_{_slug(plan.title)}.mp4"
-        final = (sim_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "sim"
-                 else render.render(plan, durs, voice, run_dir, out_name, photos))
+        final = (sim_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "sim" else
+                 mystery_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "mystery" else
+                 render.render(plan, durs, voice, run_dir, out_name, photos))
         review, social = _texts(plan, list(photos.values()))
         (OUTPUT_DIR / "story_latest.json").write_text(json.dumps({
             "topic": plan.topic, "title": plan.title, "mp4": str(final),
@@ -208,11 +212,12 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         hub.register_video(**video, status="review")
         # Instagram fetches the video from a URL: hand it a short-lived link to our own copy.
         try:
-            public_url = hub._call("video", {"id": up["videoId"]}).get("url", "")
+            stored = hub._call("video", {"id": up["videoId"]})
         except hub.PlatformError:
-            public_url = ""
-        res = publish_story(final, f"{review}\n\n▶️ ตรวจในเว็บ: {up['reviewUrl']}", social, video_url=public_url,
-                            video_id=up["videoId"], title=plan.title)
+            stored = {}
+        res = publish_story(final, f"{review}\n\n▶️ ตรวจในเว็บ: {up['reviewUrl']}", social,
+                            video_url=stored.get("url", ""), video_id=up["videoId"], title=plan.title,
+                            instagram=stored.get("instagram") if isinstance(stored.get("instagram"), dict) else None)
         print(f"  publish: {res}")
         posted = posted_somewhere(res)
         hub.register_video(**video, published=res, status="posted" if posted else "review")

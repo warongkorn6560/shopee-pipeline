@@ -320,6 +320,28 @@ MONEY_COMPLIANCE_RULES = """1. It is clearly a simulation: assumptions are prese
 5. No discussion of the royal family."""
 
 
+# Theme: original fictional mysteries (STORY_THEME=mystery, style "mystery" — prompts live in mystery.py)
+MYSTERY_TOPIC_PROMPT = """Series: {series}
+Niche: {niche}
+
+Already made (do not repeat the premise or the trick):
+{previous}
+
+Propose ONE new original mystery premise: an everyday Thai situation (condo, office, family house,
+night market, train, school, café, village) with a small platform-safe crime or puzzle (a theft, a swap,
+a lie, a missing thing, a locked room, an impossible alibi) and a fair trick the clues can reveal.
+No murder, weapons, blood, kidnapping or real people. Topic: the hook question in Thai ≤ 70 characters.
+Angle: one Thai sentence with the hidden trick (for the writer only)."""
+
+MYSTERY_COMPLIANCE_RULES = """1. Fiction only: invented names; no real people, brands, real crimes, victims or crime locations.
+2. Platform-safe: no murder, weapons, blood, kidnapping, self-harm, sexual content, harm to children or
+   animals; no mockery of any group.
+3. Fair play logic — check carefully: the [clue] beats shown BEFORE the [pause] beat must be enough to reach
+   the revealed ANSWER, and must not fit another suspect equally well. Fail if the reveal relies on a fact
+   that was not shown before the pause, if the answer contradicts a clue, or if the explanation does not
+   follow.
+4. No discussion of the royal family. (Sources: {sources})"""
+
 THEMES = {
     "wildlife": {"showrunner": WILDLIFE_SHOWRUNNER, "story": WILDLIFE_STORY_PROMPT, "topic": WILDLIFE_TOPIC_PROMPT,
                  "rules": WILDLIFE_COMPLIANCE_RULES, "page": "a Thai wildlife and nature page",
@@ -327,6 +349,9 @@ THEMES = {
     "politics": {"showrunner": SHOWRUNNER, "story": STORY_PROMPT, "topic": TOPIC_PROMPT,
                  "rules": POLITICS_COMPLIANCE_RULES, "page": "a Thai political-history page",
                  "topic_system": "You plan episodes for a neutral Thai political-history page. Every topic is documented history."},
+    "mystery": {"showrunner": "", "story": "", "topic": MYSTERY_TOPIC_PROMPT,   # the script is written by mystery.py
+                "rules": MYSTERY_COMPLIANCE_RULES, "page": "a Thai fictional mystery-story page",
+                "topic_system": "You plan episodes for a Thai page of original, platform-safe 60-second mysteries."},
     "money": {"showrunner": "", "story": "", "topic": MONEY_TOPIC_PROMPT,     # the script is written by sim.py
               "rules": MONEY_COMPLIANCE_RULES, "page": "a Thai money and small-business simulation page",
               "topic_system": "You plan episodes for a Thai page of what-if money and small-business simulations."},
@@ -579,6 +604,14 @@ def compliance_review(plan: "StoryPlan") -> tuple[bool, list[str]]:
                       + (f" (on-screen: {s.punch} · {s.callout_text} · {s.place})" if plan.style == "reaction" else "")
                       + (f" (on-screen: {s.punch})" if plan.style == "sim" else "")
                       for i, s in enumerate(plan.scenes))
+    if plan.style == "mystery":
+        names = [f"{k}: {x['name']} ({x['role']})" for k, x in enumerate(plan.suspects)]
+        beats = "\n".join(f"{i + 1}. [{s.visual}{f' #{s.clue}' if s.clue else ''}] "
+                          f"{f'(tag: {s.card_title}) ' if s.card_title else ''}{s.narration}"
+                          for i, s in enumerate(plan.scenes))
+        beats = (f"Suspects: {'; '.join(names)}\n{beats}\nANSWER: "
+                 f"{plan.suspects[plan.answer_suspect]['name'] if 0 <= plan.answer_suspect < len(plan.suspects) else '(not a suspect)'}"
+                 f" — {plan.explanation}")
     data = generate_json(
         COMPLIANCE_SYSTEM,
         COMPLIANCE_PROMPT.format(sources=", ".join(plan.sources) or "-", title=plan.title,
@@ -597,6 +630,9 @@ def write_reviewed_story(topic: str, angle: str = "", style: str = "classic") ->
     if style == "sim":
         from .sim import write_sim_story
         write = lambda t, a, _s: write_sim_story(t, a)    # noqa: E731
+    elif style == "mystery":
+        from .mystery import write_mystery
+        write = lambda t, a, _s: write_mystery(t, a)      # noqa: E731
     else:
         write = write_story
     plan = write(topic, angle, style)

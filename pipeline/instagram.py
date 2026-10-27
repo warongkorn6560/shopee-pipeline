@@ -103,9 +103,9 @@ def _host_video(video: Path) -> str:
     return r.text.strip()
 
 
-def post_reel(video: Path, caption: str, token: str, video_url: str = "") -> str:
+def post_reel(video: Path, caption: str, token: str, video_url: str = "", user_id: str = "") -> str:
     """Upload a Reel and publish it. Returns the published Instagram media ID."""
-    ig_user_id = _ig_user_id(token)
+    ig_user_id = user_id or _ig_user_id(token)
     video_url = video_url or _host_video(video)
 
     # Step 1 — create upload container
@@ -147,13 +147,16 @@ def post_reel(video: Path, caption: str, token: str, video_url: str = "") -> str
     return resp["id"]
 
 
-def publish(video: Path, caption: str, video_url: str = "") -> dict:
-    """Publish a Reel. Returns result dict (never raises — errors are returned)."""
-    token = ENV.get("INSTAGRAM_ACCESS_TOKEN", "")
+def publish(video: Path, caption: str, video_url: str = "", account: dict | None = None) -> dict:
+    """Publish a Reel. Returns result dict (never raises — errors are returned).
+    `account` ({userId, token}) is the clip's own channel account from the dashboard; without it the
+    global INSTAGRAM_ACCESS_TOKEN account is used."""
+    account = account or {}
+    token = account.get("token") or ENV.get("INSTAGRAM_ACCESS_TOKEN", "")
     if not token:
         return {"skipped": "INSTAGRAM_ACCESS_TOKEN not set — run: python -m pipeline.instagram auth"}
     try:
-        media_id = post_reel(video, caption, token, video_url)
+        media_id = post_reel(video, caption, token, video_url, str(account.get("userId") or "") if account.get("token") else "")
         return {"media_id": media_id, "status": "published"}
     except Exception as exc:
         return {"error": str(exc)}

@@ -122,7 +122,9 @@ def publish(video: Path, plan, product, mode: str | None = None, review_url: str
 # Flow B — storytelling
 # ---------------------------------------------------------------------------
 def publish_story(video: Path, review_text: str, social_caption: str,
-                  mode: str | None = None, video_url: str = "", video_id: str = "", title: str = "") -> dict:
+                  mode: str | None = None, video_url: str = "", video_id: str = "", title: str = "",
+                  instagram: dict | None = None) -> dict:
+    """`instagram`: the channel's own Instagram account ({userId, token}) when it has one."""
     mode = mode or PUBLISH_MODE
     buttons = review_buttons(video_id) if video_id and mode != "auto" else ""
     result: dict = {"telegram": telegram_send_video(video, review_text, buttons)}
@@ -135,14 +137,22 @@ def publish_story(video: Path, review_text: str, social_caption: str,
             # Each dashboard channel is one Facebook Page with its own token.
             def _page():
                 from . import hub
-                ch = hub.channel_token(STORY_CHANNEL_ID)
+                try:
+                    ch = hub.channel_token(STORY_CHANNEL_ID)
+                except hub.PlatformError:
+                    ch = {}
+                if not (ch.get("pageId") and ch.get("token")):
+                    return {"skipped": "channel has no Facebook page"}      # e.g. an Instagram-only channel
                 return _fb.publish_reel(video, social_caption, ch["pageId"], ch["token"])
             result["facebook"] = _safe(_page)
         else:
             result["facebook"] = _safe(_fb.publish_reel, video, social_caption)
+        if instagram and instagram.get("token"):     # the channel's own Instagram account
+            result["instagram"] = _safe(_ig.publish, video, social_caption[:2000], video_url, instagram)
         if STORY_CHANNEL_PRIMARY:  # the single TikTok/Instagram account follows the primary page
             result["tiktok"] = _safe(_tiktok.publish, video, social_caption[:2000])
-            result["instagram"] = _safe(_ig.publish, video, social_caption[:2000], video_url)
+            if "instagram" not in result:
+                result["instagram"] = _safe(_ig.publish, video, social_caption[:2000], video_url)
             from . import youtube as _yt
             result["youtube"] = _safe(_yt.publish, video, title or social_caption.split("\n")[0], social_caption)
     return result

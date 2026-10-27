@@ -43,10 +43,13 @@ def publish_video(video_id: str, only: str = "") -> dict:
                 res["facebook"] = _safe(facebook.publish_reel, mp4, caption, v["pageId"], v["token"])
             else:
                 res["facebook"] = _safe(facebook.publish_reel, mp4, caption)
+        own_ig = v.get("instagram") if isinstance(v.get("instagram"), dict) and v["instagram"].get("token") else None
+        if own_ig and "instagram" in want:          # the channel's own Instagram account
+            res["instagram"] = _safe(instagram.publish, mp4, caption[:2000], v["url"], own_ig)
         if v.get("primary", True):
             if "tiktok" in want:
                 res["tiktok"] = _safe(tiktok.publish, mp4, caption[:2000])
-            if "instagram" in want:
+            if "instagram" in want and not own_ig:
                 res["instagram"] = _safe(instagram.publish, mp4, caption[:2000], v["url"])
             if "youtube" in want:
                 res["youtube"] = _safe(youtube.publish, mp4, v.get("title", ""), caption)
