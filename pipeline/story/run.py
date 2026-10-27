@@ -24,8 +24,10 @@ from ..config import (
     STORY_MAX_AI_IMAGES, STORY_SERIES_NAME, STORY_VOICE_ID, THAI_VOICES, WORK_DIR,
 )
 from ..publish import publish_story
+
+DOODLE_VOICE_ID = "yq05eeRaHPMGuWTVpqeP"      # Tonce — casual male
 from ..run import _log_spend, _silent_voice, _slug, posted_somewhere, run_url
-from . import images, maps, mystery, mystery_render, render, sim, sim_render, topics, writer
+from . import doodle, doodle_render, images, maps, mystery, mystery_render, render, sim, sim_render, topics, writer
 
 def scene_durations(texts: list[str], alignment: dict | None, audio_len: float,
                     tail: float = 1.4) -> list[float]:
@@ -52,7 +54,11 @@ def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str
     tags = " ".join(plan.hashtags)
     sources = " · ".join(plan.sources)
     social = f"{plan.post_caption}\n\n{tags}"
-    if plan.style == "mystery":
+    if plan.style == "doodle":
+        social += f"\n\n📖 {doodle.FICTION}"
+        if credits := doodle.credits(plan):
+            social += "\n🖼 ภาพพื้นหลัง: " + " · ".join(credits)
+    elif plan.style == "mystery":
         social += f"\n\n📖 {mystery.FICTION}"
     elif plan.style == "sim":
         assumptions = " · ".join(getattr(plan, "assumptions", []) or [])
@@ -73,8 +79,10 @@ def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str
 
 def _pick_style() -> str:
     """Weighted pick from STORY_STYLE_MIX ("classic:80,reaction:20"); STORY_STYLE forces one."""
-    if STORY_THEME in ("money", "mystery"):    # these themes have their own renderers, no maps or photos
-        return {"money": "sim", "mystery": "mystery"}[STORY_THEME]
+    if STORY_THEME == "money":                 # own renderer, no maps or photos
+        return "sim"
+    if STORY_THEME == "mystery":               # doodle stories; STORY_STYLE=mystery forces the noir puzzle
+        return "mystery" if STORY_STYLE == "mystery" else "doodle"
     known = ("classic", "reaction")
     if STORY_STYLE in known:
         return STORY_STYLE
@@ -149,10 +157,11 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         print(f"  style: {style}")
         if offline:
             plan = (sim.mock_sim_story(topic.topic) if style == "sim" else
-                    mystery.mock_mystery(topic.topic) if style == "mystery" else writer.mock_story(topic.topic))
+                    mystery.mock_mystery(topic.topic) if style == "mystery" else
+                    doodle.mock_doodle(topic.topic) if style == "doodle" else writer.mock_story(topic.topic))
         else:
             plan = writer.write_reviewed_story(topic.topic, topic.angle, style)
-        if offline and style not in ("sim", "mystery"):
+        if offline and style not in ("sim", "mystery", "doodle"):
             plan.style = style
         print(f"  title: {plan.title} · {len(plan.scenes)} beats · {len(plan.spoken)} spoken chars")
         if dry_run:
@@ -177,8 +186,11 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
             if left is not None and left < len(plan.spoken):
                 raise RuntimeError(f"ElevenLabs quota too low ({left} chars left, need {len(plan.spoken)}).")
             narrator = random.choice(list(THAI_VOICES)) if STORY_VOICE_ID == "random" else STORY_VOICE_ID
+            speed = None
+            if plan.style == "doodle":          # first person "ผม": one casual male voice, a little quicker
+                narrator, speed = DOODLE_VOICE_ID, 1.08
             print(f"  narrator: {THAI_VOICES.get(narrator, narrator)}")
-            voice, alignment = voiceover.synthesize_with_timestamps(" ".join(texts), voice, narrator)
+            voice, alignment = voiceover.synthesize_with_timestamps(" ".join(texts), voice, narrator, speed=speed)
         audio_len = voiceover.audio_duration(voice)
         durs = scene_durations(texts, alignment, audio_len)
         print(f"  narration {audio_len:.1f}s → beats {[round(d, 1) for d in durs]}")
@@ -186,6 +198,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         out_name = f"story_{_slug(plan.title)}.mp4"
         final = (sim_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "sim" else
                  mystery_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "mystery" else
+                 doodle_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "doodle" else
                  render.render(plan, durs, voice, run_dir, out_name, photos))
         review, social = _texts(plan, list(photos.values()))
         (OUTPUT_DIR / "story_latest.json").write_text(json.dumps({

@@ -55,7 +55,8 @@ def remaining_characters() -> int | None:
         return None
 
 
-def synthesize_with_timestamps(text: str, out: Path, voice_id: str | None = None) -> tuple[Path, dict | None]:
+def synthesize_with_timestamps(text: str, out: Path, voice_id: str | None = None,
+                               speed: float | None = None) -> tuple[Path, dict | None]:
     """ElevenLabs TTS that also returns per-character timing, so visuals can
     switch exactly when the narration moves to the next scene."""
     import base64
@@ -64,7 +65,8 @@ def synthesize_with_timestamps(text: str, out: Path, voice_id: str | None = None
     r = requests.post(
         f"https://api.elevenlabs.io/v1/text-to-speech/{vid}/with-timestamps",
         headers={"xi-api-key": key, "Content-Type": "application/json"},
-        json={"text": text, "model_id": ELEVENLABS_MODEL, "voice_settings": _VOICE_SETTINGS},
+        json={"text": text, "model_id": ELEVENLABS_MODEL,
+              "voice_settings": {**_VOICE_SETTINGS, **({"speed": speed} if speed else {})}},
         timeout=180,
     )
     r.raise_for_status()

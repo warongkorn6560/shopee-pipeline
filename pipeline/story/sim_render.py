@@ -241,6 +241,8 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
     sim_chip = _pill("สถานการณ์จำลอง", 40, INK, YELLOW)
     footer = _text_block(DISCLAIMER, FONT_PATH, 28, (255, 255, 255, 200), max_w=1000, max_lines=1, min_size=18)
     mascots = {e: piggy.load(e) for e in piggy.EMOTIONS}
+    shade = Image.new("RGBA", (W, H))
+    ImageDraw.Draw(shade).rectangle((0, 1540, W, H), fill=(0, 0, 0, 150))
     coin = piggy.coin(38)
     bg_cache: dict = {}
     pops: list[float] = []
@@ -325,9 +327,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
                     ev = _pill(step.event, 40, INK, CREAM, font=FONT_DISPLAY_MEDIUM_PATH, radius=20)
                     frame.alpha_composite(ev, ((W - ev.width) // 2, 520 if punch is None else 760))
 
-            dk = ImageDraw.Draw(frame)
-            for y in range(1540, H, 6):                                         # subtitle shade
-                dk.rectangle((0, y, W, y + 6), fill=(0, 0, 0, int(170 * min((y - 1540) / 120, 1))))
+            frame.alpha_composite(shade)                                         # subtitle shade
             sub = subs[min(int(np.searchsorted(bounds, f, side="right")), len(subs) - 1)]
             if sub is not None:
                 frame.alpha_composite(sub, ((W - sub.width) // 2, 1600))

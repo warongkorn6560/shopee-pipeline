@@ -327,20 +327,23 @@ Niche: {niche}
 Already made (do not repeat the premise or the trick):
 {previous}
 
-Propose ONE new original mystery premise: an everyday Thai situation (condo, office, family house,
-night market, train, school, café, village) with a small platform-safe crime or puzzle (a theft, a swap,
-a lie, a missing thing, a locked room, an impossible alibi) and a fair trick the clues can reveal.
-No murder, weapons, blood, kidnapping or real people. Topic: the hook question in Thai ≤ 70 characters.
-Angle: one Thai sentence with the hidden trick (for the writer only)."""
+Propose ONE new original episode: a first-person everyday Thai story ("ผม…") with a relatable conflict —
+a neighbour, landlord, condo committee, co-worker, boss, customer, relative, delivery rider or stranger —
+that escalates and ends in a clever, LEGAL, non-violent comeback or a twist (a misunderstanding revealed,
+their own trick backfiring, a rule used smartly). Everyday places: condo, parking garage, office, café,
+soi, apartment hallway. No real people or brands, no property damage, harassment or revenge.
+Topic: the hook in Thai ≤ 70 characters, the way someone would title the story
+("เพื่อนบ้านแย่งที่จอดตรงผมไม่เลิก ผมเลย…"). Angle: one Thai sentence with the twist (for the writer only)."""
 
-MYSTERY_COMPLIANCE_RULES = """1. Fiction only: invented names; no real people, brands, real crimes, victims or crime locations.
-2. Platform-safe: no murder, weapons, blood, kidnapping, self-harm, sexual content, harm to children or
-   animals; no mockery of any group.
-3. Fair play logic — check carefully: the [clue] beats shown BEFORE the [pause] beat must be enough to reach
-   the revealed ANSWER, and must not fit another suspect equally well. Fail if the reveal relies on a fact
-   that was not shown before the pause, if the answer contradicts a clue, or if the explanation does not
-   follow.
-4. No discussion of the royal family. (Sources: {sources})"""
+MYSTERY_COMPLIANCE_RULES = """1. Fiction only: invented names; no real people, celebrities, brands, companies, real crimes or victims.
+2. Platform-safe: no murder, weapons, blood, kidnapping, self-harm, drugs, sexual content, harm to children or
+   animals; nobody mocked for gender, ethnicity, religion, disability, age or class.
+3. The comeback/answer is legal and non-violent: no property damage, threats, harassment, doxxing,
+   humiliating someone publicly, or unsafe/illegal tricks presented as the payoff.
+4. Logic: the twist is consistent with what was shown earlier and nothing contradicts it. For puzzle
+   episodes with [clue] and [pause] beats, the clues before the pause must be enough to reach the ANSWER and
+   must not fit another suspect equally well; the reveal may not rely on facts shown only after the pause.
+5. No discussion of the royal family. (Sources: {sources})"""
 
 THEMES = {
     "wildlife": {"showrunner": WILDLIFE_SHOWRUNNER, "story": WILDLIFE_STORY_PROMPT, "topic": WILDLIFE_TOPIC_PROMPT,
@@ -604,6 +607,11 @@ def compliance_review(plan: "StoryPlan") -> tuple[bool, list[str]]:
                       + (f" (on-screen: {s.punch} · {s.callout_text} · {s.place})" if plan.style == "reaction" else "")
                       + (f" (on-screen: {s.punch})" if plan.style == "sim" else "")
                       for i, s in enumerate(plan.scenes))
+    if plan.style == "doodle":
+        names = [f"{k}: {x['name']} ({x['role']})" for k, x in enumerate(plan.cast)]
+        beats = "\n".join(f"{i + 1}. [{s.visual}] {s.narration}" + (f" (tag: {s.punch})" if s.punch else "")
+                          for i, s in enumerate(plan.scenes))
+        beats = f"Cast: {'; '.join(names)}\n{beats}\nWHY THE TWIST WORKS: {plan.explanation}"
     if plan.style == "mystery":
         names = [f"{k}: {x['name']} ({x['role']})" for k, x in enumerate(plan.suspects)]
         beats = "\n".join(f"{i + 1}. [{s.visual}{f' #{s.clue}' if s.clue else ''}] "
@@ -633,6 +641,9 @@ def write_reviewed_story(topic: str, angle: str = "", style: str = "classic") ->
     elif style == "mystery":
         from .mystery import write_mystery
         write = lambda t, a, _s: write_mystery(t, a)      # noqa: E731
+    elif style == "doodle":
+        from .doodle import write_doodle
+        write = lambda t, a, _s: write_doodle(t, a)       # noqa: E731
     else:
         write = write_story
     plan = write(topic, angle, style)
