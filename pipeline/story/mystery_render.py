@@ -400,7 +400,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
 
             frame.alpha_composite(vign)
             frame.alpha_composite(grain[f % 4])
-            if shot not in ("pause",):
+            if shot in ("scene", "clue"):                          # suspects/reveal need the whole stage
                 bob = int(5 * math.sin(f / 10))
                 frame.alpha_composite(owl, (34, HORIZON - 120 + bob))
             frame.alpha_composite(fiction, (40, 70))
