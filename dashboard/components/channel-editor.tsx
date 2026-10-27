@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { Save, Trash2 } from "lucide-react";
-import { removeChannel, saveChannel } from "@/app/(app)/actions";
+import { Camera, Link2, Save, Trash2 } from "lucide-react";
+import { removeChannel, saveChannel, unlinkChannelInstagram } from "@/app/(app)/actions";
 import type { PublicChannel } from "@/lib/channels";
 import { hourText } from "@/lib/format";
 import { useToast } from "./toast";
@@ -47,6 +47,8 @@ export function ChannelEditor({ channel, themes, primary, seriesDefault, nicheDe
   const [theme, setTheme] = useState(channel.theme);
   const [mode, setMode] = useState<string>(channel.publishMode);
   const [enabled, setEnabled] = useState(channel.enabled);
+  const [unlinking, startUnlink] = useTransition();
+  const igOnly = channel.platform === "instagram";
   useEffect(() => {
     if (state) toast(state);
   }, [state, toast]);
@@ -57,9 +59,11 @@ export function ChannelEditor({ channel, themes, primary, seriesDefault, nicheDe
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <a href={`https://www.facebook.com/${channel.pageId}`} target="_blank" rel="noreferrer" className="text-[15px] font-semibold text-ink hover:underline">
+            <a href={igOnly ? `https://www.instagram.com/${channel.instagram?.username ?? ""}` : `https://www.facebook.com/${channel.pageId}`}
+              target="_blank" rel="noreferrer" className="text-[15px] font-semibold text-ink hover:underline">
               {channel.name}
             </a>
+            <Pill tone="idle">{igOnly ? "Instagram อย่างเดียว" : "Facebook"}</Pill>
             {primary && <Pill tone="idle">เพจหลัก</Pill>}
             {enabled ? <Pill tone="ok">เปิดใช้</Pill> : <Pill tone="idle">ปิดไว้</Pill>}
           </div>
@@ -71,8 +75,28 @@ export function ChannelEditor({ channel, themes, primary, seriesDefault, nicheDe
         </label>
       </div>
 
+      {!primary && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2 text-sm">
+          <span className="flex min-w-0 items-center gap-2 text-ink-2">
+            <Camera className="size-4 shrink-0" />
+            {channel.instagram
+              ? <>โพสต์ลง IG <a href={`https://www.instagram.com/${channel.instagram.username}`} target="_blank" rel="noreferrer" className="font-medium text-ink hover:underline">@{channel.instagram.username}</a></>
+              : "ยังไม่ได้ผูก Instagram ของช่องนี้"}
+          </span>
+          <span className="flex gap-1.5">
+            <a href={`/api/connect/instagram?channel=${encodeURIComponent(channel.id)}`} className={cx(btn.base, btn.secondary, "px-2.5 py-1 text-xs")}>
+              <Link2 className="size-3.5" /> {channel.instagram ? "เปลี่ยนบัญชี" : "ผูก Instagram"}
+            </a>
+            {channel.instagram && !igOnly && (
+              <button type="button" disabled={unlinking} onClick={() => startUnlink(async () => toast(await unlinkChannelInstagram(channel.id)))}
+                className={cx(btn.base, btn.ghost, "px-2.5 py-1 text-xs")}>เลิกผูก</button>
+            )}
+          </span>
+        </div>
+      )}
+
       <div className="space-y-1.5">
-        <div className="text-sm font-medium text-ink">เพจนี้เล่าเรื่องอะไร</div>
+        <div className="text-sm font-medium text-ink">ช่องนี้เล่าเรื่องอะไร</div>
         <Segmented name="theme" options={themes} value={theme} onChange={setTheme} />
       </div>
 
@@ -115,7 +139,7 @@ export function ChannelEditor({ channel, themes, primary, seriesDefault, nicheDe
           type="button"
           disabled={removing}
           onClick={() => {
-            if (confirm(`นำเพจ ${channel.name} ออกจากระบบ? (เพจบน Facebook ไม่ถูกลบ)`)) startRemove(async () => toast(await removeChannel(channel.id)));
+            if (confirm(`นำ ${channel.name} ออกจากระบบ? (บัญชีจริงบน ${igOnly ? "Instagram" : "Facebook"} ไม่ถูกลบ)`)) startRemove(async () => toast(await removeChannel(channel.id)));
           }}
           className={cx(btn.base, btn.ghost, "px-3 py-1.5")}
         >

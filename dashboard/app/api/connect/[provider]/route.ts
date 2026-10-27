@@ -13,6 +13,11 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ provide
   }
   const state = crypto.randomUUID();
   const res = NextResponse.redirect(await authUrl(p, request.nextUrl.origin, state));
-  res.cookies.set(`oauth_${p}`, state, { httpOnly: true, secure: true, sameSite: "lax", maxAge: 600, path: "/api/connect" });
+  const cookie = { httpOnly: true, secure: true, sameSite: "lax" as const, maxAge: 600, path: "/api/connect" };
+  res.cookies.set(`oauth_${p}`, state, cookie);
+  // Instagram can be linked to one channel (?channel=<id>) or start a new IG-only channel (?channel=new).
+  const target = p === "instagram" ? request.nextUrl.searchParams.get("channel") ?? "" : "";
+  if (/^(new|[\w-]{1,80})$/.test(target)) res.cookies.set("oauth_target", target, cookie);
+  else res.cookies.delete({ name: "oauth_target", path: "/api/connect" });
   return res;
 }

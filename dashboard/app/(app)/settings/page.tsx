@@ -372,15 +372,23 @@ async function Channels() {
       <div id="facebook" className="scroll-mt-24" />
       <CardHeader
         eyebrow={<span className="inline-flex items-center gap-2"><FlowTag flow="story" /> โพสต์ Reels · token เพจไม่หมดอายุ</span>}
-        title={list.length ? `เพจ Facebook · ${list.length} เพจ` : "เพจ Facebook"}
+        title={list.length ? `ช่องที่ทำคลิปให้ · ${list.length} ช่อง` : "เพจ Facebook"}
         action={
-          <a
-            href={appReady ? "/api/connect/facebook" : undefined}
-            aria-disabled={!appReady}
-            className={cx(btn.base, list.length ? btn.secondary : btn.primary, !appReady && "pointer-events-none opacity-50")}
-          >
-            {list.length ? <><Plus className="size-4" /> เพิ่มเพจ / ต่ออายุ</> : <><Link2 className="size-4" /> เชื่อมเพจ Facebook</>}
-          </a>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={appReady ? "/api/connect/facebook" : undefined}
+              aria-disabled={!appReady}
+              className={cx(btn.base, list.length ? btn.secondary : btn.primary, !appReady && "pointer-events-none opacity-50")}
+            >
+              {list.length ? <><Plus className="size-4" /> เพิ่มเพจ / ต่ออายุ</> : <><Link2 className="size-4" /> เชื่อมเพจ Facebook</>}
+            </a>
+            {list.length > 0 && (
+              // eslint-disable-next-line @next/next/no-html-link-for-pages -- OAuth redirect route, must not be prefetched
+              <a href="/api/connect/instagram?channel=new" className={cx(btn.base, btn.secondary)}>
+                <Plus className="size-4" /> ช่องใหม่ (IG อย่างเดียว)
+              </a>
+            )}
+          </div>
         }
       />
       {!list.length && (
@@ -400,7 +408,7 @@ async function Channels() {
         </div>
       )}
       <p className="border-t border-line px-5 py-3 text-xs leading-relaxed text-ink-3">
-        เพจหลัก (เพจแรกที่เปิดใช้) รับหัวข้อที่ไม่ได้ระบุเพจ · หัวข้อในคิวเลือกเพจได้ตอนเพิ่ม · token ทุกเพจเข้ารหัสเก็บในคลังข้อมูลส่วนตัว
+        เพจหลัก (เพจแรกที่เปิดใช้) รับหัวข้อที่ไม่ได้ระบุเพจ และโพสต์ลง IG/TikTok/YouTube ที่เชื่อมด้านล่าง · ช่องอื่นโพสต์ลงเพจและ IG ของตัวเอง · ตอนผูก IG ให้ล็อกอินบัญชีนั้นใน instagram.com ไว้ก่อน · token ทุกช่องเข้ารหัสเก็บในคลังข้อมูลส่วนตัว
       </p>
     </Card>
   );

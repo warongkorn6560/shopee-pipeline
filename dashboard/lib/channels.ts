@@ -10,7 +10,10 @@ import { list, mutate, now, type Channel } from "./store";
 // The first enabled page stays mirrored in FACEBOOK_PAGE_ID / FACEBOOK_PAGE_TOKEN
 // for pipeline runs that don't pass a channel.
 
-export type PublicChannel = Omit<Channel, "tokenEnc"> & { postHours: number[] };
+export type PublicChannel = Omit<Channel, "tokenEnc" | "instagram"> & {
+  postHours: number[];
+  instagram?: { id: string; username: string; expiresAt: string };
+};
 
 function key(): Buffer {
   const secret = process.env.CHANNEL_KEY || process.env.SESSION_SECRET;
@@ -33,24 +36,101 @@ function unseal(sealed: string): string {
 }
 
 function publicView(c: Channel): PublicChannel {
-  const { tokenEnc, ...rest } = c;
+  const { tokenEnc, instagram, ...rest } = c;
   void tokenEnc;
-  return { ...rest, postHours: rest.postHours ?? [] };
+  return {
+    ...rest, postHours: rest.postHours ?? [],
+    ...(instagram ? { instagram: { id: instagram.id, username: instagram.username, expiresAt: instagram.expiresAt } } : {}),
+  };
 }
-const pickPrimary = (items: Channel[]) => items.find((c) => c.enabled) ?? null;
+// The primary channel is always a Facebook page: it is mirrored into the legacy page secrets.
+const pickPrimary = (items: Channel[]) => items.find((c) => c.enabled && c.platform === "facebook") ?? null;
 
 export async function channels(): Promise<{ channels: PublicChannel[]; primaryId: string }> {
   const items = await list("channels");
   return { channels: items.map(publicView), primaryId: pickPrimary(items)?.id ?? "" };
 }
 
+/** Where each channel's clips go: primary id plus, per other channel, its own platforms. */
+export async function routing(): Promise<{ primaryId: string; own: Record<string, string[]> }> {
+  const items = await list("channels");
+  const own: Record<string, string[]> = {};
+  for (const c of items) own[c.id] = [...(c.platform === "facebook" ? ["facebook"] : []), ...(c.instagram ? ["instagram"] : [])];
+  return { primaryId: pickPrimary(items)?.id ?? "", own };
+}
+
 export async function primaryChannelId(): Promise<string> {
   return pickPrimary(await list("channels"))?.id ?? "";
 }
 
-export async function channelToken(id: string): Promise<{ channel: PublicChannel; token: string } | null> {
+export type ChannelTokens = { channel: PublicChannel; token: string; instagram?: { userId: string; token: string } };
+
+export async function channelToken(id: string): Promise<ChannelTokens | null> {
   const c = (await list("channels")).find((x) => x.id === id);
-  return c ? { channel: publicView(c), token: unseal(c.tokenEnc) } : null;
+  if (!c) return null;
+  return {
+    channel: publicView(c),
+    token: c.tokenEnc ? unseal(c.tokenEnc) : "",
+    ...(c.instagram ? { instagram: { userId: c.instagram.id, token: unseal(c.instagram.tokenEnc) } } : {}),
+  };
+}
+
+export type IgAccount = { id: string; username: string; token: string; expiresAt: string };
+
+/** Give a channel its own IG account; target "new" creates an IG-only channel. Returns the channel id. */
+export async function attachInstagram(target: string, acct: IgAccount): Promise<string> {
+  const ig = { id: acct.id, username: acct.username, tokenEnc: seal(acct.token), expiresAt: acct.expiresAt, connectedAt: now() };
+  const id = await mutate("channels", (items) => {
+    // One IG account belongs to one channel.
+    for (const c of items) if (c.instagram?.id === acct.id && c.id !== target) delete c.instagram;
+    if (target === "new") {
+      const existing = items.find((c) => c.platform === "instagram" && c.pageId === acct.id);
+      if (existing) {
+        Object.assign(existing, { name: `@${acct.username}`, instagram: ig, updatedAt: now() });
+        return existing.id;
+      }
+      items.push({
+        id: `ig-${acct.id}`, platform: "instagram", pageId: acct.id, name: `@${acct.username}`,
+        theme: "wildlife", seriesName: "", niche: "", publishMode: "review", postHours: [], enabled: true,
+        tokenEnc: "", instagram: ig, connectedAt: now(), updatedAt: now(),
+      });
+      return `ig-${acct.id}`;
+    }
+    const c = items.find((x) => x.id === target);
+    if (!c) return null;
+    Object.assign(c, { instagram: ig, updatedAt: now() });
+    return c.id;
+  });
+  if (!id) throw new Error("ไม่พบช่องที่จะผูก Instagram");
+  return id;
+}
+
+export async function detachInstagram(id: string): Promise<void> {
+  await mutate("channels", (items) => {
+    const c = items.find((x) => x.id === id);
+    if (c) delete c.instagram;
+  });
+}
+
+/** Daily: refresh channel IG tokens with under 45 days left. */
+export async function refreshChannelInstagram(
+  refresh: (token: string) => Promise<{ access_token: string; expires_in: number }>,
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  const due = (await list("channels")).filter((c) => c.instagram && !(Date.parse(c.instagram.expiresAt) - Date.now() > 45 * 86_400_000));
+  for (const c of due) {
+    try {
+      const r = await refresh(unseal(c.instagram!.tokenEnc));
+      await mutate("channels", (items) => {
+        const x = items.find((y) => y.id === c.id);
+        if (x?.instagram) Object.assign(x.instagram, { tokenEnc: seal(r.access_token), expiresAt: new Date(Date.now() + r.expires_in * 1000).toISOString() });
+      });
+      out[`instagram:${c.id}`] = "refreshed";
+    } catch (e) {
+      out[`instagram:${c.id}`] = String(e);
+    }
+  }
+  return out;
 }
 
 /** Add pages (or refresh the token of pages already connected, keeping their settings). */

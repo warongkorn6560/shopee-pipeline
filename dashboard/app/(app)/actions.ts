@@ -398,6 +398,17 @@ export async function removeChannel(id: string): Promise<ActionResult> {
   return { ok: true, message: `นำเพจ ${name} ออกแล้ว` };
 }
 
+export async function unlinkChannelInstagram(id: string): Promise<ActionResult> {
+  await requireSession();
+  try {
+    await channels.detachInstagram(id);
+  } catch (e) {
+    return fail(e, "เลิกผูก Instagram ไม่สำเร็จ");
+  }
+  refresh();
+  return { ok: true, message: "เลิกผูก Instagram แล้ว — ช่องนี้จะไม่โพสต์ลง IG" };
+}
+
 export async function saveMetaSecret(_: ActionResult | null, form: FormData): Promise<ActionResult> {
   await requireSession();
   const secret = String(form.get("appSecret") ?? "").trim();

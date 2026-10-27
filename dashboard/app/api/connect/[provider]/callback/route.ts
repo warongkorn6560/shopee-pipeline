@@ -19,11 +19,12 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ provide
   const code = q.get("code");
   if (!code || !expected || q.get("state") !== expected) return fail("ลิงก์เชื่อมหมดอายุ — กดเชื่อมใหม่อีกครั้ง");
   try {
-    const result = await completeConnect(p, code, request.nextUrl.origin);
+    const result = await completeConnect(p, code, request.nextUrl.origin, p === "instagram" ? request.cookies.get("oauth_target")?.value ?? "" : "");
     const res = result.done
       ? NextResponse.redirect(Object.assign(back, { search: `?connected=${p}&name=${encodeURIComponent(result.name)}` }))
       : NextResponse.redirect(new URL("/settings/pick-page", request.url));
     res.cookies.delete({ name: `oauth_${p}`, path: "/api/connect" });
+    res.cookies.delete({ name: "oauth_target", path: "/api/connect" });
     return res;
   } catch (e) {
     return fail(e instanceof Error ? e.message.slice(0, 200) : "เชื่อมไม่สำเร็จ");

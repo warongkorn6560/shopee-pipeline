@@ -90,10 +90,18 @@ export interface VideoCost {
 }
 
 /** A page the story flow publishes to, with its own content settings. */
+export interface ChannelInstagram {
+  id: string;
+  username: string;
+  tokenEnc: string; // 60-day long-lived token, sealed; refreshed by the daily cron
+  expiresAt: string;
+  connectedAt: string;
+}
+
 export interface Channel {
   id: string;
-  platform: "facebook";
-  pageId: string;
+  platform: "facebook" | "instagram"; // instagram = an IG-only channel (no Facebook page)
+  pageId: string; // Facebook page id, or the IG user id for an IG-only channel
   name: string;
   theme: string; // STORY_THEME value
   seriesName: string; // "" = the theme's default
@@ -101,7 +109,8 @@ export interface Channel {
   publishMode: "review" | "auto";
   postHours?: number[]; // Bangkok hours, 1–3; empty = STORY_POST_HOURS
   enabled: boolean;
-  tokenEnc: string; // page token, AES-GCM sealed (lib/channels.ts)
+  tokenEnc: string; // page token, AES-GCM sealed (lib/channels.ts); "" for IG-only
+  instagram?: ChannelInstagram; // this channel's own IG account, used instead of the global one
   connectedAt: string;
   updatedAt: string;
 }

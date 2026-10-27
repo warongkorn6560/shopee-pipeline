@@ -189,7 +189,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
       if (typeof body.channelId !== "string") return bad("channelId required");
       const got = await channelToken(body.channelId);
       if (!got) return bad("channel not found", 404);
-      return NextResponse.json({ channelId: got.channel.id, pageId: got.channel.pageId, name: got.channel.name, token: got.token });
+      return NextResponse.json({
+        channelId: got.channel.id, platform: got.channel.platform, name: got.channel.name,
+        pageId: got.channel.platform === "facebook" ? got.channel.pageId : "", token: got.token,
+        ...(got.instagram ? { instagram: got.instagram } : {}),
+      });
     }
 
     case "video": {
@@ -205,7 +209,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         url: await presignedPlayback(v.pathname, 60),
         primary: !v.channelId || v.channelId === primaryId,
         published: v.published ?? {},
-        ...(ch ? { channelId: ch.channel.id, channelName: ch.channel.name, pageId: ch.channel.pageId, token: ch.token } : {}),
+        // Non-primary channels post to their own page (if any) and their own IG account (if linked).
+        ...(ch ? {
+          channelId: ch.channel.id, channelName: ch.channel.name,
+          ...(ch.channel.platform === "facebook" ? { pageId: ch.channel.pageId, token: ch.token } : {}),
+          ...(ch.instagram ? { instagram: ch.instagram } : {}),
+        } : {}),
       });
     }
 

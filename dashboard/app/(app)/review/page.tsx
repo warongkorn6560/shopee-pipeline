@@ -8,7 +8,7 @@ import { requireSession } from "@/lib/dal";
 import { getVideos } from "@/lib/data";
 import { bytes, compact, number, relative, thaiDateTime } from "@/lib/format";
 import { summary } from "@/lib/stats";
-import { primaryChannelId } from "@/lib/channels";
+import { routing } from "@/lib/channels";
 import { readDoc } from "@/lib/social";
 import { PLATFORMS, explainError, pending } from "@/lib/posting";
 import { POSTED_RETENTION_DAYS, VIDEO_RETENTION_DAYS, storeConfigured, type Video, type VideoStatus } from "@/lib/store";
@@ -49,7 +49,7 @@ async function ReviewContent({ searchParams }: { searchParams: Promise<Record<st
   const tab = (TABS.find((t) => t.key === sp.status)?.key ?? "review") as VideoStatus | "all";
   const [res, primary, yt] = await Promise.all([
     getVideos(),
-    storeConfigured() ? primaryChannelId().catch(() => "") : "",
+    storeConfigured() ? routing().catch(() => ({ primaryId: "", own: {} })) : { primaryId: "", own: {} },
     storeConfigured() ? readDoc().then((d) => Boolean(d.accounts.youtube)).catch(() => false) : false,
   ]);
   if (!res.ok) return <InlineError title="โหลดวิดีโอไม่สำเร็จ" detail={res.error} />;
@@ -77,14 +77,14 @@ async function ReviewContent({ searchParams }: { searchParams: Promise<Record<st
         </Card>
       ) : (
         <div className="grid [&>*]:min-w-0 gap-5 md:grid-cols-2 2xl:grid-cols-3">
-          {videos.map((v) => <VideoCard key={v.id} v={v} primaryId={primary} youtube={yt} />)}
+          {videos.map((v) => <VideoCard key={v.id} v={v} route={primary} youtube={yt} />)}
         </div>
       )}
     </>
   );
 }
 
-function VideoCard({ v, primaryId, youtube }: { v: Video; primaryId: string; youtube: boolean }) {
+function VideoCard({ v, route, youtube }: { v: Video; route: { primaryId: string; own: Record<string, string[]> }; youtube: boolean }) {
   const s = STATUS[v.status];
   return (
     <div id={`v-${v.id}`} className="scroll-mt-24 rounded-2xl target:ring-2 target:ring-focus target:ring-offset-2 target:ring-offset-bg">
@@ -152,7 +152,7 @@ function VideoCard({ v, primaryId, youtube }: { v: Video; primaryId: string; you
         {v.note && <p className="rounded-lg bg-bad-soft px-3 py-2 text-xs text-bad">หมายเหตุ: {v.note}</p>}
         <PostStatus v={v} />
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
-          <ReviewActions id={v.id} status={v.status} canPost={v.flow === "story"} tried={Object.keys(v.published ?? {}).some((k) => (PLATFORMS as readonly string[]).includes(k))} retry={v.flow === "story" ? pending(v, primaryId, youtube) : []} />
+          <ReviewActions id={v.id} status={v.status} canPost={v.flow === "story"} tried={Object.keys(v.published ?? {}).some((k) => (PLATFORMS as readonly string[]).includes(k))} retry={v.flow === "story" ? pending(v, route.primaryId, youtube, route.own) : []} />
           {v.pathname && (
             <a href={`/api/videos/${v.id}`} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
               <Download className="size-4" /> ดาวน์โหลด

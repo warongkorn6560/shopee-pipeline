@@ -6,8 +6,9 @@ import type { Video } from "./store";
 export const PLATFORMS = ["facebook", "instagram", "tiktok", "youtube"] as const;
 
 /** YouTube only counts once a channel is connected (otherwise the pipeline skips it). */
-export function targets(v: Video, primaryId: string, youtube = false): string[] {
-  if (v.channelId && v.channelId !== primaryId) return ["facebook"];
+/** `own`: per non-primary channel, the platforms it has its own account on (default: its Facebook page). */
+export function targets(v: Video, primaryId: string, youtube = false, own: Record<string, string[]> = {}): string[] {
+  if (v.channelId && v.channelId !== primaryId) return own[v.channelId] ?? ["facebook"];
   return PLATFORMS.filter((p) => p !== "youtube" || youtube);
 }
 
@@ -15,8 +16,8 @@ const succeeded = (r: unknown) =>
   Boolean(r && typeof r === "object" && !("error" in r) && !("skipped" in r));
 
 /** Platforms not yet posted successfully; [] once everything worked. */
-export function pending(v: Video, primaryId: string, youtube = false): string[] {
-  return targets(v, primaryId, youtube).filter((p) => !succeeded(v.published?.[p]));
+export function pending(v: Video, primaryId: string, youtube = false, own: Record<string, string[]> = {}): string[] {
+  return targets(v, primaryId, youtube, own).filter((p) => !succeeded(v.published?.[p]));
 }
 
 /** Plain-Thai reason for errors that need the user, not a retry. */

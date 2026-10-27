@@ -151,7 +151,7 @@ async function json<T>(res: Response, what: string): Promise<T> {
 // ---------------------------------------------------------------------------
 export type CallbackResult = { done: true; name: string } | { done: false; pick: true };
 
-export async function completeConnect(p: Provider, code: string, origin: string): Promise<CallbackResult> {
+export async function completeConnect(p: Provider, code: string, origin: string, target = ""): Promise<CallbackResult> {
   const redirect_uri = redirectUri(origin, p);
   const doc = await readDoc();
   const now = new Date().toISOString();
@@ -206,6 +206,12 @@ export async function completeConnect(p: Provider, code: string, origin: string)
     const me = await json<{ id: string; username: string }>(await fetch(`${IG_GRAPH}/me?${new URLSearchParams({
       fields: "id,username", access_token: long.access_token,
     })}`), "อ่านบัญชี Instagram ไม่สำเร็จ");
+    const expiresAt = new Date(Date.now() + long.expires_in * 1000).toISOString();
+    if (target) {
+      // A channel's own account (or a new IG-only channel); the global IG account stays as is.
+      await channels.attachInstagram(target, { id: me.id, username: me.username, token: long.access_token, expiresAt });
+      return { done: true, name: `@${me.username}` };
+    }
     await gh.setSecret("INSTAGRAM_ACCESS_TOKEN", long.access_token);
     doc.accounts.instagram = {
       id: me.id, name: `@${me.username}`, connectedAt: now, token: long.access_token,
@@ -332,6 +338,9 @@ export async function refreshTokens(): Promise<Record<string, string>> {
       }
     } else out.instagram = "fresh";
   }
+  Object.assign(out, await channels.refreshChannelInstagram(async (token) => json<{ access_token: string; expires_in: number }>(
+    await fetch(`${IG_GRAPH}/refresh_access_token?${new URLSearchParams({ grant_type: "ig_refresh_token", access_token: token })}`), "refresh",
+  )));
   const tt = doc.accounts.tiktok;
   const app = tiktokApp(doc);
   if (tt?.token && app) {
