@@ -38,13 +38,12 @@ def stylize(img: Image.Image) -> Image.Image:
     return ImageEnhance.Contrast(im).enhance(0.9)
 
 
-def _bg_for(place: str, used: dict) -> tuple[str, Image.Image]:
+def _bg_for(place: str, take: int) -> tuple[str, Image.Image]:
+    """The `take`-th photo of a place: a long run in one place cycles through its photos."""
     files = sorted(BG_DIR.glob(f"{place}_*.jpg")) or sorted(BG_DIR.glob("*.jpg"))
     if not files:
         return "", Image.new("RGB", (W, H), (150, 165, 190))
-    if place not in used:
-        used[place] = random.Random(place).choice(files)
-    f = used[place]
+    f = files[(random.Random(place).randrange(len(files)) + take) % len(files)]
     img = Image.open(f).convert("RGB")
     return f.name, img if img.size == (W, H) else stylize(img)
 
@@ -144,8 +143,9 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
     guess = _guess_card()
     marks = {(kind, v): dc.wobble_marks(v, kind) for kind in ("shock", "angry") for v in range(3)}
     shade = _shade(1560, 120)
-    used_bg: dict = {}
     bg_cache: dict = {}
+    takes: dict[str, int] = {}
+    run_place, run_len = None, 0
     seen: set[int] = set()
     rng = random.Random(len(plan.title))
     pops: list[float] = []
@@ -153,9 +153,14 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
 
     for i, (sc, d) in enumerate(zip(plan.scenes, beat_durs)):
         n = max(int(round(d * FPS)), 1)
-        if sc.place not in bg_cache:
-            bg_cache[sc.place] = _bg_for(sc.place, used_bg)
-        sc.bg_file, bg = bg_cache[sc.place]
+        run_len = run_len + 1 if sc.place == run_place else 1
+        if sc.place != run_place or run_len % 3 == 1 and run_len > 1:      # new angle every 3 beats
+            takes[sc.place] = takes.get(sc.place, -1) + 1
+        run_place = sc.place
+        key = (sc.place, takes[sc.place])
+        if key not in bg_cache:
+            bg_cache[key] = _bg_for(*key)
+        sc.bg_file, bg = bg_cache[key]
         chunks = _subtitle_chunks(sc.narration, max_chars=40)
         bounds = np.cumsum([max(len(c), 1) for c in chunks]) / sum(max(len(c), 1) for c in chunks) * n
         subs = [_subtitle(c) for c in chunks]
@@ -212,7 +217,7 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
                 if sc.visual == "guess":
                     k = min(f / 6, 1)
                     gs = _scaled(guess, 1.3 - 0.3 * k) if k < 1 else guess
-                    frame.alpha_composite(gs, ((W - gs.width) // 2, 640))
+                    frame.alpha_composite(gs, ((W - gs.width) // 2, 400))      # above the heads
                 if fiction is not None:
                     frame.alpha_composite(fiction, (W - fiction.width - 30, 40))
                 sub = subs[min(int(np.searchsorted(bounds, f, side="right")), len(subs) - 1)]

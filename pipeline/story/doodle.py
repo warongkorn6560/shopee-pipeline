@@ -90,7 +90,8 @@ FIELDS PER BEAT
 - narration: the subtitle (one line ≤ 40 characters is best; split long sentences into more beats).
 - spoken: the SAME words for text-to-speech, numbers and times in Thai words, no symbols or emoji.
   All spoken text together: {chars_min}-{chars_max} Thai characters.
-- place: where this beat happens, one of: {places}. Keep the same place for a run of beats.
+- place: where this beat happens, one of: {places}. Keep the same place for a run of 2-4 beats, then
+  move with the story (hallway → lobby → meeting room → parking…): use at least 4 different places.
 - on_screen: 1-2 people visible: who (cast index), expression ({expressions}), pose ({poses}).
   Use the narrator in most beats; show who is talking or reacting.
 - tag: a short on-screen label ≤ 14 characters ("ครั้งที่ 4", "ตีสอง", "3 วันต่อมา") or "".
