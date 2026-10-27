@@ -293,6 +293,33 @@ POLITICS_COMPLIANCE_RULES = """1. Monarchy out of scope: no discussion of any ki
 5. No graphic violence.
 6. Every factual claim must be plausible for the cited sources: {sources}"""
 
+# Theme: what-if money / small-business simulations (STORY_THEME=money, style "sim" — see sim.py)
+MONEY_TOPIC_PROMPT = """Series: {series}
+Niche: {niche}
+
+Already covered (do not repeat or closely paraphrase):
+{previous}
+
+Propose ONE new episode: a what-if money or small-business simulation Thai viewers relate to, that the
+program can compute as one of:
+- a small shop over a few days (street food, drinks, a stall near a school/market/office, price wars,
+  half-price promotions, hidden costs like ice/rent/delivery fees),
+- saving or spending a fixed amount every day or month for years (with or without interest),
+- buying something on installments (flat interest vs paying cash).
+Topic: a Thai hook ≤ 70 characters ("เปิดร้านชาเย็นหน้าโรงเรียน 10 วัน ได้กำไรเท่าไหร่?", "เก็บวันละ 100 บาท 10 ปี
+จะมีเท่าไหร่?", "ทำไมร้านลดครึ่งราคาถึงเจ๊ง?"). Angle: one Thai sentence naming the model and the twist.
+No real brands, gambling, lottery, crypto, or get-rich-quick."""
+
+MONEY_COMPLIANCE_RULES = """1. It is clearly a simulation: assumptions are presented as assumptions ("สมมติ"), results are never a
+   promise, guarantee or investment advice; no "รวยแน่", "ได้ชัวร์", "ไม่มีขาดทุน".
+2. Real-world figures (rates, prices, wages) must be plausible for the cited sources: {sources};
+   everything else must read as an assumption.
+3. No real brands, shops, companies, people, stocks, funds or coins; no gambling, lottery, crypto,
+   pyramid schemes or get-rich-quick.
+4. No recommendation to buy a specific financial product; no shaming people for being poor or in debt.
+5. No discussion of the royal family."""
+
+
 THEMES = {
     "wildlife": {"showrunner": WILDLIFE_SHOWRUNNER, "story": WILDLIFE_STORY_PROMPT, "topic": WILDLIFE_TOPIC_PROMPT,
                  "rules": WILDLIFE_COMPLIANCE_RULES, "page": "a Thai wildlife and nature page",
@@ -300,6 +327,9 @@ THEMES = {
     "politics": {"showrunner": SHOWRUNNER, "story": STORY_PROMPT, "topic": TOPIC_PROMPT,
                  "rules": POLITICS_COMPLIANCE_RULES, "page": "a Thai political-history page",
                  "topic_system": "You plan episodes for a neutral Thai political-history page. Every topic is documented history."},
+    "money": {"showrunner": "", "story": "", "topic": MONEY_TOPIC_PROMPT,     # the script is written by sim.py
+              "rules": MONEY_COMPLIANCE_RULES, "page": "a Thai money and small-business simulation page",
+              "topic_system": "You plan episodes for a Thai page of what-if money and small-business simulations."},
 }
 THEME = THEMES.get(STORY_THEME, THEMES["wildlife"])
 
@@ -547,6 +577,7 @@ def compliance_review(plan: "StoryPlan") -> tuple[bool, list[str]]:
     hits = royal_term_hits(plan)
     beats = "\n".join(f"{i + 1}. [{s.card_title} | {s.card_subtitle} | {s.card_fact}] {s.narration}"
                       + (f" (on-screen: {s.punch} · {s.callout_text} · {s.place})" if plan.style == "reaction" else "")
+                      + (f" (on-screen: {s.punch})" if plan.style == "sim" else "")
                       for i, s in enumerate(plan.scenes))
     data = generate_json(
         COMPLIANCE_SYSTEM,
@@ -562,15 +593,20 @@ def compliance_review(plan: "StoryPlan") -> tuple[bool, list[str]]:
 
 
 def write_reviewed_story(topic: str, angle: str = "", style: str = "classic") -> "StoryPlan":
-    """Write → standards review → one rewrite with the editor's notes → fail closed."""
-    plan = write_story(topic, angle, style)
+    """Write → standards review → up to two rewrites with the editor's notes → fail closed."""
+    if style == "sim":
+        from .sim import write_sim_story
+        write = lambda t, a, _s: write_sim_story(t, a)    # noqa: E731
+    else:
+        write = write_story
+    plan = write(topic, angle, style)
     ok, issues = compliance_review(plan)
     if ok:
         print("  [review] passed standards check")
         return plan
     for attempt in (1, 2):                    # up to two rewrites with the editor's notes, then fail closed
         print(f"  [review] failed: {issues}")
-        plan = write_story(topic, (angle + "\n\nThe previous draft FAILED the standards review for these reasons — "
+        plan = write(topic, (angle + "\n\nThe previous draft FAILED the standards review for these reasons — "
                                    "fix every one, and when unsure, cut the claim rather than reword it:\n- "
                                    + "\n- ".join(issues)).strip(), style)
         ok, issues = compliance_review(plan)

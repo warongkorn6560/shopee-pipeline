@@ -19,13 +19,13 @@ import traceback
 
 from .. import hub, llm, stats, voiceover
 from ..config import (
-    STORY_CHANNEL_ID, STORY_STYLE, STORY_STYLE_MIX,
+    STORY_CHANNEL_ID, STORY_STYLE, STORY_STYLE_MIX, STORY_THEME,
     COST_CAP_USD, OUTPUT_DIR, PUBLISH_MODE, STORY_AUTO_TOPIC, STORY_IMAGE_PRICE_USD,
     STORY_MAX_AI_IMAGES, STORY_SERIES_NAME, STORY_VOICE_ID, THAI_VOICES, WORK_DIR,
 )
 from ..publish import publish_story
 from ..run import _log_spend, _silent_voice, _slug, posted_somewhere, run_url
-from . import images, maps, render, topics, writer
+from . import images, maps, render, sim, sim_render, topics, writer
 
 def scene_durations(texts: list[str], alignment: dict | None, audio_len: float,
                     tail: float = 1.4) -> list[float]:
@@ -51,11 +51,19 @@ def scene_durations(texts: list[str], alignment: dict | None, audio_len: float,
 def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str, str]:
     tags = " ".join(plan.hashtags)
     sources = " · ".join(plan.sources)
-    credits = [maps.BASEMAP_CREDIT] + sorted({i.credit for i in photos if i.provider == "wikimedia"})
     social = f"{plan.post_caption}\n\n{tags}"
-    if sources:
-        social += f"\n\n📚 แหล่งข้อมูล: {sources}"
-    social += "\n🛰 " + "\n🖼 ".join(credits)
+    if plan.style == "sim":
+        assumptions = " · ".join(getattr(plan, "assumptions", []) or [])
+        if assumptions:
+            social += f"\n\n🧮 สมมติฐาน: {assumptions}"
+        if sources:
+            social += f"\n📚 แหล่งข้อมูล: {sources}"
+        social += f"\n⚠️ {sim.DISCLAIMER}"
+    else:
+        credits = [maps.BASEMAP_CREDIT] + sorted({i.credit for i in photos if i.provider == "wikimedia"})
+        if sources:
+            social += f"\n\n📚 แหล่งข้อมูล: {sources}"
+        social += "\n🛰 " + "\n🖼 ".join(credits)
     review = (f"📖 {STORY_SERIES_NAME} — {plan.title}\n\n{social}\n\n"
               f"หัวข้อ: {plan.topic}\nโหมด: {PUBLISH_MODE}")
     return review, social
@@ -63,6 +71,8 @@ def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str
 
 def _pick_style() -> str:
     """Weighted pick from STORY_STYLE_MIX ("classic:80,reaction:20"); STORY_STYLE forces one."""
+    if STORY_THEME == "money":
+        return "sim"                     # the money theme has its own renderer, no maps or photos
     known = ("classic", "reaction")
     if STORY_STYLE in known:
         return STORY_STYLE
@@ -135,8 +145,11 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
     try:
         style = _pick_style()
         print(f"  style: {style}")
-        plan = writer.mock_story(topic.topic) if offline else writer.write_reviewed_story(topic.topic, topic.angle, style)
         if offline:
+            plan = sim.mock_sim_story(topic.topic) if style == "sim" else writer.mock_story(topic.topic)
+        else:
+            plan = writer.write_reviewed_story(topic.topic, topic.angle, style)
+        if offline and style != "sim":
             plan.style = style
         print(f"  title: {plan.title} · {len(plan.scenes)} beats · {len(plan.spoken)} spoken chars")
         if dry_run:
@@ -167,12 +180,15 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         durs = scene_durations(texts, alignment, audio_len)
         print(f"  narration {audio_len:.1f}s → beats {[round(d, 1) for d in durs]}")
 
-        final = render.render(plan, durs, voice, run_dir, f"story_{_slug(plan.title)}.mp4", photos)
+        out_name = f"story_{_slug(plan.title)}.mp4"
+        final = (sim_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "sim"
+                 else render.render(plan, durs, voice, run_dir, out_name, photos))
         review, social = _texts(plan, list(photos.values()))
         (OUTPUT_DIR / "story_latest.json").write_text(json.dumps({
             "topic": plan.topic, "title": plan.title, "mp4": str(final),
             "region": plan.region, "hook": [plan.hook_title, plan.hook_subtitle],
             "scenes": [s.__dict__ for s in plan.scenes],
+            "sim": plan.sim.table() if getattr(plan, "sim", None) else None,
             "social_caption": social,
         }, indent=2, ensure_ascii=False))
 
