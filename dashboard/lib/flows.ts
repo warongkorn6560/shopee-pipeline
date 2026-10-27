@@ -108,7 +108,7 @@ export interface VarDef {
 }
 
 /** Series label each STORY_THEME uses when none is set (mirrors pipeline/config.py). */
-export const THEME_SERIES: Record<string, string> = { wildlife: "สัตว์ไทยน่ารู้", politics: "ย้อนรอยการเมืองไทย" };
+export const THEME_SERIES: Record<string, string> = { wildlife: "สัตว์ไทยน่ารู้", politics: "ย้อนรอยการเมืองไทย", money: "ลองดูสิ…ถ้าทำแบบนี้" };
 
 export const VARIABLES: VarDef[] = [
   {
@@ -168,6 +168,7 @@ export const VARIABLES: VarDef[] = [
     options: [
       { value: "wildlife", label: "สัตว์ & ธรรมชาติไทย" },
       { value: "politics", label: "ประวัติศาสตร์การเมือง", hint: "ควรตรวจก่อนโพสต์" },
+      { value: "money", label: "เงินทองจำลอง", hint: "สถานการณ์จำลอง" },
     ],
   },
   {
