@@ -41,6 +41,8 @@ def publish_video(video_id: str, only: str = "") -> dict:
         if "facebook" in want:
             if v.get("pageId") and v.get("token"):
                 res["facebook"] = _safe(facebook.publish_reel, mp4, caption, v["pageId"], v["token"])
+            elif v.get("channelId") and not v.get("primary", True):
+                res["facebook"] = {"skipped": "channel has no Facebook page"}    # e.g. an Instagram-only channel
             else:
                 res["facebook"] = _safe(facebook.publish_reel, mp4, caption)
         own_ig = v.get("instagram") if isinstance(v.get("instagram"), dict) and v["instagram"].get("token") else None

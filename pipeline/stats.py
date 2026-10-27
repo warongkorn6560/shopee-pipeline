@@ -100,16 +100,26 @@ def _totals(stats: dict) -> dict:
 def collect() -> int:
     videos = hub._call("videos-list", {"flow": "story", "days": 60}).get("videos", [])
     print(f"▶ stats for {len(videos)} posted videos")
-    page_tokens: dict[str, str] = {}
+    channels: dict[str, dict] = {}
+
+    def channel(channel_id: str | None) -> dict:
+        key = channel_id or ""
+        if key not in channels:
+            try:
+                channels[key] = hub.channel_token(channel_id) if channel_id else {}
+            except hub.PlatformError:
+                channels[key] = {}
+        return channels[key]
 
     def page_token(channel_id: str | None) -> str | None:
-        key = channel_id or ""
-        if key not in page_tokens:
-            try:
-                page_tokens[key] = hub.channel_token(channel_id)["token"] if channel_id else ENV.get("FACEBOOK_PAGE_TOKEN", "")
-            except hub.PlatformError:
-                page_tokens[key] = ENV.get("FACEBOOK_PAGE_TOKEN", "")
-        return page_tokens[key] or None
+        ch = channel(channel_id)
+        if channel_id and ch and not ch.get("pageId"):
+            return None                                   # Instagram-only channel
+        return ch.get("token") or ENV.get("FACEBOOK_PAGE_TOKEN", "") or None
+
+    def ig_token_for(channel_id: str | None) -> str:
+        own = channel(channel_id).get("instagram") if channel_id else None
+        return (own or {}).get("token") or ig_token
 
     yt_token = None
     try:
@@ -127,8 +137,8 @@ def collect() -> int:
             if (fid := _ok_id(pub, "facebook", "video_id")) and (tok := page_token(v.get("channelId"))):
                 if s := _facebook(fid, tok):
                     stats["facebook"] = s
-            if (mid := _ok_id(pub, "instagram", "media_id")) and ig_token:
-                if s := _instagram(mid, ig_token):
+            if (mid := _ok_id(pub, "instagram", "media_id")) and (tok := ig_token_for(v.get("channelId"))):
+                if s := _instagram(mid, tok):
                     stats["instagram"] = s
             if (yid := _ok_id(pub, "youtube", "video_id")) and yid in yt:
                 stats["youtube"] = yt[yid]
