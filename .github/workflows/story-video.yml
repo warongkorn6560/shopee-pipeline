@@ -61,14 +61,18 @@ jobs:
                       --arg dflt "$DEFAULT_HOURS" '
             (.primaryId // "") as $p
             | ($dflt | split(",") | map(select(. != "") | tonumber)) as $default
-            | def due: $event != "schedule" or ((if ((.postHours // []) | length) > 0 then .postHours else $default end) | index($hour) != null);
+            # GitHub often runs the hourly cron late or skips hours, so a slot stays due for 6 hours;
+            # the run itself skips when the channel already has a clip since that slot (story/run.py).
+            | def hours: (if ((.postHours // []) | length) > 0 then .postHours else $default end);
+            def due: $event != "schedule" or (hours | any(.[]; (($hour - . + 24) % 24) < 6));
             [(.channels // [])[] | select(.enabled) | select(due)
                | {id, theme: (.theme // ""), series: (.seriesName // ""), niche: (.niche // ""),
-                  mode: (.publishMode // ""), primary: (if .id == $p then "true" else "false" end)}]
+                  mode: (.publishMode // ""), primary: (if .id == $p then "true" else "false" end),
+                  hours: (hours | map(tostring) | join(","))}]
             | if $only != "" then map(select(.id == $only))
               elif $topic != "" then map(select(.primary == "true"))
               else . end
-            | if length == 0 and ((($res_channels | length) == 0) and ({} | due)) then [{id: "", theme: "", series: "", niche: "", mode: "", primary: "true"}] else . end
+            | if length == 0 and ((($res_channels | length) == 0) and ({} | due)) then [{id: "", theme: "", series: "", niche: "", mode: "", primary: "true", hours: $dflt}] else . end
             | [range(0; ($count | tonumber) | if . < 1 then 1 elif . > 60 then 60 else . end) as $k | .[] | . + {n: ($k + 1 | tostring)}]
             | {include: .}' --arg count "$COUNT" --argjson res_channels "$(jq -c '[(.channels // [])[] | select(.enabled)]' <<<"$res")" <<<"$res")
           run=$(jq -r 'if (.include | length) > 0 then "true" else "false" end' <<<"$matrix")
@@ -136,6 +140,7 @@ jobs:
           # review = dashboard review page + Telegram (safe default). auto = also post to Facebook/TikTok/IG.
           PUBLISH_MODE: ${{ inputs.preview && 'review' || matrix.mode || vars.STORY_PUBLISH_MODE || 'review' }}
           STORY_CHANNEL_ID: ${{ matrix.id }}
+          STORY_SLOT_HOURS: ${{ matrix.hours }}
           STORY_CHANNEL_PRIMARY: ${{ matrix.primary }}
           # the global series/niche belong to the global theme; a channel on another theme uses its own or the theme default
           STORY_SERIES_NAME: ${{ matrix.series || ((matrix.theme == '' || matrix.theme == vars.STORY_THEME) && vars.STORY_SERIES_NAME || '') }}

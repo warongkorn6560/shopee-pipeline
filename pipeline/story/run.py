@@ -19,7 +19,7 @@ import traceback
 
 from .. import hub, llm, stats, voiceover
 from ..config import (
-    STORY_CHANNEL_ID, STORY_STYLE, STORY_STYLE_MIX, STORY_THEME,
+    STORY_CHANNEL_ID, STORY_CHANNEL_PRIMARY, STORY_STYLE, STORY_STYLE_MIX, STORY_THEME,
     COST_CAP_USD, OUTPUT_DIR, PUBLISH_MODE, STORY_AUTO_TOPIC, STORY_IMAGE_PRICE_USD,
     STORY_MAX_AI_IMAGES, STORY_SERIES_NAME, STORY_VOICE_ID, THAI_VOICES, WORK_DIR,
 )
@@ -99,6 +99,31 @@ def _pick_style() -> str:
     return random.choices(list(weights), weights=list(weights.values()))[0]
 
 
+def _slot_done() -> bool:
+    """Scheduled runs only: True when this channel already has a clip since its latest posting slot.
+    The workflow keeps a slot due for a few hours because GitHub's hourly cron is often late."""
+    import os
+    hours = [int(h) for h in os.environ.get("STORY_SLOT_HOURS", "").split(",") if h.strip().isdigit()]
+    if os.environ.get("GITHUB_EVENT_NAME") != "schedule" or not hours:
+        return False
+    bkk = dt.timezone(dt.timedelta(hours=7))
+    now = dt.datetime.now(bkk)
+    slots = [now.replace(hour=h, minute=0, second=0, microsecond=0) - dt.timedelta(days=d)
+             for h in hours for d in (0, 1)]
+    slot = max(s for s in slots if s <= now)
+    try:
+        videos = hub._call("videos-list", {"flow": "story", "days": 2}).get("videos", [])
+    except hub.PlatformError:
+        return False
+    mine = {STORY_CHANNEL_ID} | ({""} if STORY_CHANNEL_PRIMARY else set())
+    for v in videos:
+        made = dt.datetime.fromisoformat(str(v.get("createdAt", "1970-01-01")).replace("Z", "+00:00"))
+        if (v.get("channelId") or "") in mine and made >= slot:
+            print(f"  slot {slot:%H:%M} already has a clip ({v.get('title', '')[:40]}) — nothing to do")
+            return True
+    return False
+
+
 def _pick_topic(override: str | None, live: bool) -> topics.Topic | None:
     """Next topic. Live runs claim it in the dashboard queue; test runs never do."""
     if not live:
@@ -131,6 +156,8 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     live = not (offline or dry_run or no_publish)
 
+    if live and not topic_override and _slot_done():
+        return 0
     if live and hub.stop_for_budget("คลิปเล่าเรื่อง"):
         return 0
     try:
