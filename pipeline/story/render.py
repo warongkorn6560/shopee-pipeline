@@ -148,16 +148,32 @@ def _label_sprite(text: str) -> Image.Image:
     return img
 
 
-def _pin_sprite(number: str) -> Image.Image:
-    label = number or "•"
-    t = _text_block(label, FONT_DISPLAY_PATH, 52, (20, 20, 20, 255), max_w=200, max_lines=1)
-    side = max(76, (t.width if t else 0) + 28)
-    img = Image.new("RGBA", (side + 8, side + 22))
+def _pin_sprite(number: str, name: str = "") -> Image.Image:
+    """A teardrop map pin with the place name above it; the pin tip is the bottom-centre pixel.
+
+    An unlabelled pin reads as a stray icon, so the name always rides along; the number (if any)
+    goes inside the pin head.
+    """
+    head = 64
+    tag = _text_block(name, FONT_DISPLAY_MEDIUM_PATH, 40, (255, 255, 255, 255), max_w=420,
+                      max_lines=1, stroke=4) if name else None
+    w = max(head + 8, tag.width if tag else 0)
+    top = (tag.height + 4) if tag else 0
+    img = Image.new("RGBA", (w, top + head + 34))
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle((4, 4, side + 4, side + 4), radius=14, fill=GOLD + (255,), outline=(20, 20, 20, 255), width=4)
-    d.polygon([(side / 2 - 8, side + 2), (side / 2 + 16, side + 2), (side / 2 + 4, side + 20)], fill=(20, 20, 20, 255))
-    if t:
-        img.alpha_composite(t, (int(4 + (side - t.width) / 2), int(4 + (side - t.height) / 2 + 2)))
+    cx, cy, r = w / 2, top + 4 + head / 2, head / 2
+    d.polygon([(cx - r * 0.72, cy + r * 0.6), (cx + r * 0.72, cy + r * 0.6), (cx, img.height - 2)],
+              fill=GOLD + (255,), outline=(20, 20, 20, 255))
+    d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=GOLD + (255,), outline=(20, 20, 20, 255), width=4)
+    d.line([(cx - r * 0.72 + 2, cy + r * 0.66), (cx, img.height - 3), (cx + r * 0.72 - 2, cy + r * 0.66)],
+           fill=(20, 20, 20, 255), width=4)
+    n = _text_block(number, FONT_DISPLAY_PATH, 40, (20, 20, 20, 255), max_w=head, max_lines=1) if number else None
+    if n:
+        img.alpha_composite(n, (int(cx - n.width / 2), int(cy - n.height / 2 + 2)))
+    else:
+        d.ellipse((cx - 12, cy - 12, cx + 12, cy + 12), fill=(20, 20, 20, 255))
+    if tag:
+        img.alpha_composite(tag, (int((w - tag.width) / 2), 0))
     return img
 
 
@@ -210,6 +226,7 @@ class Overlay:
     point: tuple[float, float] | None = None
     number: str = ""
     primary: bool = False
+    name: str = ""
 
 
 @dataclass
@@ -245,7 +262,7 @@ def resolve_geography(plan) -> tuple[list[GeoBeat], tuple[float, float, float, f
         pts: list[tuple[float, float]] = []
         for i, f in enumerate(sc.focus or []):
             name, kind, style = f.get("name", ""), f.get("kind", "place"), f.get("style", "pin")
-            ov = Overlay(style=style, number=str(f.get("number", "") or ""), primary=(i == 0))
+            ov = Overlay(style=style, number=str(f.get("number", "") or ""), primary=(i == 0), name=name)
             feat = None if kind == "place" else maps.fetch_feature(name, kind, search)
             if feat:
                 ov.lines = [np.array(x) for x in feat.lines]
@@ -795,9 +812,11 @@ def render(plan, beat_durs: list[float], voice: Path, run_dir: Path, out_name: s
             return start[0] + (end[0] - start[0]) * e, start[1] + (end[1] - start[1]) * e, span
 
         camera = MapCamera(lat_ref, [at(k / 6) for k in range(7)])
-        label_sprites = [(label_cache.setdefault(name, _label_sprite(name)), lon, lat) for name, lon, lat in g.labels]
         pin_overlays = [ov for ov in g.overlays if ov.style == "pin" and ov.point]
-        pin_sprites = [_pin_sprite(ov.number) for ov in pin_overlays]
+        pin_sprites = [_pin_sprite(ov.number, ov.name) for ov in pin_overlays]
+        pinned = {ov.name for ov in pin_overlays}
+        label_sprites = [(label_cache.setdefault(name, _label_sprite(name)), lon, lat)
+                         for name, lon, lat in g.labels if name not in pinned]
 
         for f in range(n):
             t = f / max(n - 1, 1)

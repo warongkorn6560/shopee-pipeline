@@ -247,6 +247,9 @@ FIELDS PER BEAT
   {{"name": "อุทยานแห่งชาติเขาใหญ่", "kind": "area", "style": "area", "number": ""}},
   {{"name": "เกาะลิบง", "kind": "place", "style": "pin", "number": "1"}}.
   kind: waterway | road | railway | admin_area | area | place. style: line | area | pin. [] if none.
+  National parks and wildlife sanctuaries are ALWAYS kind "area", style "area", with the full official
+  name ("เขตรักษาพันธุ์สัตว์ป่าห้วยขาแข้ง", not "ห้วยขาแข้ง"), so their outline is drawn. Use "pin" only
+  for a small spot (an island, a village, a cave) and give every pin a number.
 - labels (map beats): 2-6 Thai place names for orientation. [] otherwise.
 - span_start_km / span_end_km (map beats): map width at start/end; park scale ~20-80, region ~150-400,
   country ~600-1200. Use 30 and 15 when not a map beat.

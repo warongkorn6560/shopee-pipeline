@@ -133,12 +133,13 @@ def _cached(kind: str, key: str, fetch):
 
 
 def geocode(name: str, bbox: tuple[float, float, float, float] | None = None) -> tuple[float, float] | None:
-    """(lon, lat) of a place name, preferring results inside bbox (w, s, e, n)."""
-    def fetch():
-        params = {"q": name, "format": "jsonv2", "limit": 1, "accept-language": "th"}
-        if bbox:
-            w, s, e, n = bbox
-            params.update(viewbox=f"{w},{n},{e},{s}", bounded=0)
+    """(lon, lat) of a place name inside bbox (w, s, e, n) when given.
+
+    Nominatim's first hit is often a same-named village or creek ("ห้วย…" is a common stream name),
+    so take a few candidates inside the box and keep the most important one (parks, districts and
+    towns outrank hamlets). Nothing inside the box → None rather than a pin somewhere wrong.
+    """
+    def ask(params):
         with _nominatim_lock:  # Nominatim policy: max 1 request per second
             wait = 1.1 - (time.time() - _last_nominatim[0])
             if wait > 0:
@@ -146,12 +147,24 @@ def geocode(name: str, bbox: tuple[float, float, float, float] | None = None) ->
             try:
                 r = requests.get(NOMINATIM, params=params, headers={"User-Agent": UA}, timeout=30)
                 _last_nominatim[0] = time.time()
-                hits = r.json() if r.ok else []
+                return r.json() if r.ok else None
             except (requests.RequestException, ValueError):
                 return None
-        return [float(hits[0]["lon"]), float(hits[0]["lat"])] if hits else None
 
-    got = _cached("geocode", f"{name}|{bbox}", fetch)
+    def fetch():
+        params = {"q": name, "format": "jsonv2", "limit": 5, "accept-language": "th"}
+        if bbox:
+            w, s, e, n = bbox
+            params.update(viewbox=f"{w},{n},{e},{s}", bounded=1)
+        hits = ask(params)
+        if hits is None:
+            return None
+        if not hits:
+            return []
+        best = max(hits, key=lambda h: float(h.get("importance") or 0))
+        return [float(best["lon"]), float(best["lat"])]
+
+    got = _cached("geocode", f"v2|{name}|{bbox}", fetch)
     return (got[0], got[1]) if got else None
 
 
