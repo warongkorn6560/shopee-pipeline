@@ -20,7 +20,7 @@ const STATUS_TONE: Record<string, Tone> = {
   Ready: "ok", New: "idle", Posted: "ok", Done: "ok", Failed: "bad", Hold: "warn", Producing: "live",
 };
 const STATUS_TH: Record<string, string> = {
-  Ready: "รอผลิต", New: "ใหม่", Posted: "ผลิตแล้ว", Done: "ผลิตแล้ว", Failed: "ล้มเหลว", Hold: "พักไว้", Producing: "กำลังผลิต",
+  Ready: "รอผลิต", New: "ใหม่", Posted: "โพสต์แล้ว", Done: "ผลิตแล้ว", Failed: "ล้มเหลว", Hold: "พักไว้", Producing: "กำลังผลิต",
 };
 
 export default function QueuePage({ searchParams }: PageProps<"/queue">) {
@@ -40,7 +40,8 @@ async function QueueContent({ searchParams }: { searchParams: SP }) {
   await requireSession();
   const sp = await searchParams;
   const tab = sp.tab === "stories" ? "stories" : "products";
-  const status = typeof sp.status === "string" ? sp.status : "Ready";
+  const status = typeof sp.status === "string" ? sp.status : tab === "stories" ? "" : "Ready";
+  const channel = typeof sp.channel === "string" ? sp.channel : "";
   if (!storeConfigured()) {
     return <Card className="p-6 text-sm text-ink-2">ยังไม่ได้เชื่อมคลังข้อมูล (BLOB_READ_WRITE_TOKEN)</Card>;
   }
@@ -50,7 +51,7 @@ async function QueueContent({ searchParams }: { searchParams: SP }) {
         <TabLink href="/queue?tab=products" active={tab === "products"} label="สินค้า" tag="Flow A" />
         <TabLink href="/queue?tab=stories" active={tab === "stories"} label="หัวข้อเรื่องเล่า" tag="Flow B" />
       </div>
-      {tab === "products" ? <Products status={status} /> : <Stories status={status} />}
+      {tab === "products" ? <Products status={status} /> : <Stories status={status} channel={channel} />}
     </>
   );
 }
@@ -70,6 +71,10 @@ function TabLink({ href, active, label, tag }: { href: string; active: boolean; 
 }
 
 function Filters({ base, counts, current }: { base: string; counts: Record<string, number>; current: string }) {
+  const chip = (k: string) => cx(
+    "rounded-full border px-3 py-1 text-xs",
+    current === k ? "border-ink bg-ink text-surface" : "border-line bg-surface text-ink-2 hover:border-line-strong",
+  );
   const keys = ["Ready", ...Object.keys(counts).filter((k) => k !== "Ready").sort(), "all"];
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -77,10 +82,7 @@ function Filters({ base, counts, current }: { base: string; counts: Record<strin
         <Link
           key={k}
           href={`${base}&status=${k}`}
-          className={cx(
-            "rounded-full border px-3 py-1 text-xs",
-            current === k ? "border-ink bg-ink text-surface" : "border-line bg-surface text-ink-2 hover:border-line-strong",
-          )}
+          className={chip(k)}
         >
           {k === "all" ? "ทั้งหมด" : STATUS_TH[k] ?? k}{" "}
           <span className="tabular opacity-60">{k === "all" ? Object.values(counts).reduce((a, b) => a + b, 0) : counts[k] ?? 0}</span>
@@ -161,12 +163,15 @@ function ProductRow({ p, next }: { p: Product; next: boolean }) {
   );
 }
 
-async function Stories({ status }: { status: string }) {
+async function Stories({ status: picked, channel }: { status: string; channel: string }) {
   const res = await getStories();
   if (!res.ok) return <InlineError title="โหลดหัวข้อไม่สำเร็จ" detail={res.error} />;
-  const all = res.value;
   const ch = storeConfigured() ? await settle(channels()) : null;
   const { channels: pages, primaryId } = ch?.ok ? ch.value : { channels: [], primaryId: "" };
+  const all = channel ? res.value.filter((s) => (s.channelId || primaryId) === channel) : res.value;
+  // Most topics are written by the AI as it makes the clip, so "Ready" is often empty: show everything then.
+  const status = picked || (all.some((s) => s.status === "Ready") ? "Ready" : "all");
+  const base = `/queue?tab=stories${channel ? `&channel=${encodeURIComponent(channel)}` : ""}`;
   const live = pages.filter((c) => c.enabled);
   const ordered = [...live.filter((c) => c.id === primaryId), ...live.filter((c) => c.id !== primaryId)];
   const owner = (s: Story) => s.channelId || primaryId;
@@ -182,7 +187,17 @@ async function Stories({ status }: { status: string }) {
         <div className="px-5 pt-4 pb-5"><AddStoryForm channels={ordered.map(({ id, name }) => ({ id, name }))} /></div>
       </Card>
       <Card>
-        <CardHeader eyebrow={`${all.length} หัวข้อ`} title="หัวข้อเรื่องเล่า" action={<Filters base="/queue?tab=stories" counts={countBy(all)} current={status} />} />
+        <CardHeader eyebrow={`${all.length} หัวข้อ`} title="หัวข้อเรื่องเล่า" action={<Filters base={base} counts={countBy(all)} current={status} />} />
+        {pages.length > 1 && (
+          <div className="mt-3 flex flex-wrap gap-1.5 px-5">
+            {[{ id: "", name: "ทุกช่อง" }, ...ordered].map((c) => (
+              <Link key={c.id} href={`/queue?tab=stories${c.id ? `&channel=${encodeURIComponent(c.id)}` : ""}`}
+                className={cx("rounded-full border px-3 py-1 text-xs", channel === c.id ? "border-ink bg-ink text-surface" : "border-line bg-surface text-ink-2 hover:border-line-strong")}>
+                {c.name}
+              </Link>
+            ))}
+          </div>
+        )}
         <ul className="mt-3 divide-y divide-line">
           {[...rows].reverse().map((s) => <StoryRow key={s.id} s={s} next={nextIds.has(s.id)} canRun={canRun} page={pageName(s)} />)}
           {rows.length === 0 && (
