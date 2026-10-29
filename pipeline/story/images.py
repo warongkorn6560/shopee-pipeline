@@ -16,6 +16,7 @@ the rest of the run as soon as the Gateway refuses (e.g. free-tier accounts).
 from __future__ import annotations
 
 import base64
+import io
 import re
 import threading
 from dataclasses import dataclass
@@ -96,7 +97,8 @@ def _species_ok(page: dict, query: str) -> bool:
 
 
 def _commons_search(query: str, used: set[int], lock: threading.Lock,
-                    photo: bool = False) -> tuple[str, str] | None:
+                    photo: bool = False) -> list[tuple[int, str, str]]:
+    """Usable Commons files for query, best first: (pageid, thumb url, credit)."""
     params = {
         "action": "query", "format": "json", "generator": "search", "gsrnamespace": 6,
         "gsrsearch": query, "gsrlimit": 12, "prop": "imageinfo|categories", "cllimit": "max",
@@ -113,6 +115,7 @@ def _commons_search(query: str, used: set[int], lock: threading.Lock,
                 p.get("index", 99))
 
     pages = sorted((r.json().get("query", {}).get("pages", {}) or {}).values(), key=score)
+    out = []
     for p in pages:
         if not _species_ok(p, query):
             continue
@@ -132,13 +135,54 @@ def _commons_search(query: str, used: set[int], lock: threading.Lock,
         with lock:
             if p["pageid"] in used:
                 continue
-            used.add(p["pageid"])
         artist = _strip_html(meta.get("Artist", {}).get("value", ""))[:60] or "Unknown"
-        return info["thumburl"], f"ภาพ: {artist} · {lic} · Wikimedia Commons"
-    return None
+        out.append((p["pageid"], info["thumburl"], f"ภาพ: {artist} · {lic} · Wikimedia Commons"))
+    return out
 
 
-def _wikimedia(query: str, visual: str, out: Path, used: set[int], lock) -> SceneImage | None:
+_VERDICT = {"type": "object", "additionalProperties": False, "required": ["ok", "what"],
+            "properties": {"ok": {"type": "boolean"}, "what": {"type": "string"}}}
+MAX_CHECKS = 5          # vision checks per scene before giving up and using a card
+
+
+def _verify(data: bytes, query: str, visual: str, about: str) -> tuple[bool, str]:
+    """A quick look by a small vision model: is this really the picture the beat asked for?
+    Without Claude configured there is no check (the filename filters above still apply)."""
+    from PIL import Image
+
+    from ..llm import claude_available, look
+
+    if not claude_available():
+        return True, "unchecked"
+    try:
+        im = Image.open(io.BytesIO(data)).convert("RGB")
+    except OSError:
+        return False, "unreadable"
+    im.thumbnail((768, 768))
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=85)
+    m = _BINOMIAL.match(query)
+    if m:
+        rules = (f"It must be a real PHOTOGRAPH (not a drawing, painting, old plate, illustration, render, "
+                 f"diagram or map) of a LIVE {m.group(1)} {m.group(2)} — exactly that species, clearly "
+                 f"visible and recognisable. Reject: dead, roadkill, carcass, hunted, stuffed or taxidermy, "
+                 f"museum specimen, skin, skull or bones, a different species, a cage or zoo sign as the "
+                 f"main subject, gore, or an image where the animal is too tiny or blurry to identify.")
+    elif visual == "map":
+        rules = "It must be a clear map that matches the request."
+    else:
+        rules = ("It must clearly show what the request names (an archival photo, portrait or document is "
+                 "fine). Reject unrelated subjects, gore, or images dominated by text/watermarks.")
+    verdict = look(buf.getvalue(),
+                   f"This image may be used in a short educational video. Beat topic: {about!r}. "
+                   f"Requested image: {query!r}.\n{rules}\nSet ok=true only if it passes every rule. "
+                   f"'what' = a few words on what the image actually shows.", _VERDICT)
+    if verdict is None:
+        return False, "check failed"
+    return bool(verdict.get("ok")), str(verdict.get("what", ""))[:80]
+
+
+def _wikimedia(query: str, visual: str, out: Path, used: set[int], lock, about: str = "") -> SceneImage | None:
     if not query:
         return None
     attempts = [query]
@@ -147,16 +191,30 @@ def _wikimedia(query: str, visual: str, out: Path, used: set[int], lock) -> Scen
     words = query.split()
     if len(words) > 2:
         attempts.append(" ".join(words[:2]))
+    checks = 0
     for q in attempts:
         try:
-            hit = _commons_search(q, used, lock, photo=visual == "photo")
+            hits = _commons_search(q, used, lock, photo=visual == "photo")
         except requests.RequestException as e:
             print(f"    [img] commons search failed ({e.__class__.__name__}); skipping")
             return None
-        if hit:
-            url, credit = hit
-            img = requests.get(url, headers={"User-Agent": UA}, timeout=60)
-            if img.ok and img.content:
+        for pageid, url, credit in hits:
+            if checks >= MAX_CHECKS:
+                return None
+            with lock:
+                if pageid in used:
+                    continue
+                used.add(pageid)            # claimed: never offered to another beat, pass or fail
+            try:
+                img = requests.get(url, headers={"User-Agent": UA}, timeout=60)
+            except requests.RequestException:
+                continue
+            if not (img.ok and img.content):
+                continue
+            checks += 1
+            ok, what = _verify(img.content, q, visual, about)
+            print(f"    [img] {'✓' if ok else '✗'} {url.rsplit('/', 1)[-1][:60]} — {what}")
+            if ok:
                 out.write_bytes(img.content)
                 return SceneImage(out, credit, "wikimedia")
     return None
@@ -212,7 +270,8 @@ def fetch_all(scenes, run_dir: Path) -> list[SceneImage]:
         i, sc = i_scene
         for provider in _chain(sc.visual):
             if provider == "wikimedia":
-                got = _wikimedia(sc.image_query, sc.visual, run_dir / f"img_{i}.jpg", used, lock)
+                got = _wikimedia(sc.image_query, sc.visual, run_dir / f"img_{i}.jpg", used, lock,
+                                about=getattr(sc, "narration", "") or getattr(sc, "card_title", ""))
             else:
                 got = _gateway(sc.image_prompt, run_dir / f"img_{i}.png", budget)
             if got:

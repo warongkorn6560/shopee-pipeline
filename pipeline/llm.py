@@ -137,3 +137,37 @@ def generate_json(system: str, prompt: str, *, schema: dict | None = None, max_t
 
 def provider_label() -> str:
     return CLAUDE_MODEL if claude_available() else "AI Gateway (free tier)"
+
+
+VISION_MODEL = ENV.get("STORY_VISION_MODEL") or "claude-haiku-5-5"
+
+
+def look(image_jpeg: bytes, prompt: str, schema: dict) -> dict | None:
+    """Ask a small Claude model about one image (schema-constrained JSON). None when Claude isn't
+    configured or the call fails — callers decide whether that means "skip the image"."""
+    if not claude_available():
+        return None
+    import base64
+
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=ENV["ANTHROPIC_API_KEY"], max_retries=3, timeout=120)
+    try:
+        msg = client.messages.create(
+            model=VISION_MODEL, max_tokens=400,
+            messages=[{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                             "data": base64.b64encode(image_jpeg).decode()}},
+                {"type": "text", "text": prompt},
+            ]}],
+            output_config={"format": {"type": "json_schema", "schema": schema}},
+        )
+    except anthropic.APIError as e:
+        print(f"  [vision] {e.__class__.__name__}")
+        return None
+    _track(msg.model, msg.usage)
+    text = next((b.text for b in msg.content if b.type == "text"), "")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
