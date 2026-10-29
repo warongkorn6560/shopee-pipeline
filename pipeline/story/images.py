@@ -75,14 +75,31 @@ def _relevant(title: str, query: str) -> bool:
 
 _NOT_PHOTO = re.compile(r"\b(map|locator|location|results?|chart|diagram|flag|logo|seal|statue|fountain|stamp|"
                         r"coin|illustration|drawing|painting|skeleton|monument|sculpture|memorial|roundabout|"
-                        r"museum|taxidermy|stuffed|toy|mascot)\b|\.svg$", re.I)
+                        r"museum|museo|museu|naturalis|naturkunde|specimens?|skull|skin|taxidermy|stuffed|toy|"
+                        r"mascot|road[ _-]?kill(ed)?|killed|dead|carcass|keulemans|schlegel|lithograph|plate|brehm|"
+                        r"lydekker|wolf, joseph)\b|keulemans|schlegel|\.svg$", re.I)
+
+# "Genus species …" at the start of a query (wildlife beats ask for the scientific name)
+_BINOMIAL = re.compile(r"^([A-Z][a-z]{3,})\s+([a-z]{3,})\b")
+
+
+def _species_ok(page: dict, query: str) -> bool:
+    """For a scientific-name query the file must really be that species: genus AND epithet in the
+    title or in a Commons category. A loose word match ("night", "fruit") otherwise lets a fishing
+    cat stand in for a leopard cat."""
+    m = _BINOMIAL.match(query)
+    if not m:
+        return True
+    genus, epithet = m.group(1).lower(), m.group(2).lower()
+    hay = " ".join([page.get("title", "")] + [c.get("title", "") for c in page.get("categories", [])]).lower()
+    return genus in hay and epithet in hay
 
 
 def _commons_search(query: str, used: set[int], lock: threading.Lock,
                     photo: bool = False) -> tuple[str, str] | None:
     params = {
         "action": "query", "format": "json", "generator": "search", "gsrnamespace": 6,
-        "gsrsearch": query, "gsrlimit": 12, "prop": "imageinfo",
+        "gsrsearch": query, "gsrlimit": 12, "prop": "imageinfo|categories", "cllimit": "max",
         "iiprop": "url|size|mime|extmetadata", "iiurlwidth": 1600,
         "iiextmetadatafilter": "LicenseShortName|Artist",
     }
@@ -90,14 +107,17 @@ def _commons_search(query: str, used: set[int], lock: threading.Lock,
     r.raise_for_status()
     kws = _keywords(query)
 
-    def score(p):  # most query words in the file title first, then Commons' own ranking
+    def score(p):  # the right species first, then most query words in the title, then Commons' ranking
         t = p.get("title", "").lower()
-        return (-sum(1 for k in kws if k in t or k.rstrip("s") in t), p.get("index", 99))
+        return (not _species_ok(p, query), -sum(1 for k in kws if k in t or k.rstrip("s") in t),
+                p.get("index", 99))
 
     pages = sorted((r.json().get("query", {}).get("pages", {}) or {}).values(), key=score)
     for p in pages:
-        if not _relevant(p.get("title", ""), query):
+        if not _species_ok(p, query):
             continue
+        if not _BINOMIAL.match(query) and not _relevant(p.get("title", ""), query):
+            continue  # (a species query is already checked against title + categories)
         if photo and _NOT_PHOTO.search(p.get("title", "")):
             continue  # a "photo" beat must show a real photograph, not a map or results chart
         info = (p.get("imageinfo") or [{}])[0]
