@@ -202,6 +202,12 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         if photo_idx and not offline:
             got = images.fetch_all([plan.scenes[i] for i in photo_idx], run_dir)
             photos = {i: img for i, img in zip(photo_idx, got) if img.provider != "card"}
+            # A rare animal may have only a couple of verified photos: show those again (a new crop and
+            # move each time) rather than drop to a plain graphic card.
+            good = list(photos.values())
+            for k, i in enumerate(i for i in photo_idx if i not in photos):
+                if good:
+                    photos[i] = good[k % len(good)]
 
         voice = run_dir / "voice.mp3"
         texts = [s.spoken or s.narration for s in plan.scenes]

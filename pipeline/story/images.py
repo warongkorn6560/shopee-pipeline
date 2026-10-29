@@ -91,17 +91,20 @@ def _species_ok(page: dict, query: str) -> bool:
     m = _BINOMIAL.match(query)
     if not m:
         return True
-    genus, epithet = m.group(1).lower(), m.group(2).lower()
-    hay = " ".join([page.get("title", "")] + [c.get("title", "") for c in page.get("categories", [])]).lower()
-    return genus in hay and epithet in hay
+    name = f"{m.group(1)} {m.group(2)}".lower()      # the whole binomial ("Chitra chitra" ≠ a person named Chitra)
+    hay = " ".join([page.get("title", "")] + [c.get("title", "") for c in page.get("categories", [])])
+    return name in hay.lower().replace("_", " ")
 
 
 def _commons_search(query: str, used: set[int], lock: threading.Lock,
-                    photo: bool = False) -> list[tuple[int, str, str]]:
-    """Usable Commons files for query, best first: (pageid, thumb url, credit)."""
+                    photo: bool = False, category: str = "") -> list[tuple[int, str, str]]:
+    """Usable Commons files for query, best first: (pageid, thumb url, credit).
+    With `category`, the files filed in that Commons category instead of a text search."""
+    source = ({"generator": "categorymembers", "gcmtitle": f"Category:{category}", "gcmtype": "file",
+               "gcmlimit": 40} if category else
+              {"generator": "search", "gsrnamespace": 6, "gsrsearch": query, "gsrlimit": 12})
     params = {
-        "action": "query", "format": "json", "generator": "search", "gsrnamespace": 6,
-        "gsrsearch": query, "gsrlimit": 12, "prop": "imageinfo|categories", "cllimit": "max",
+        "action": "query", "format": "json", **source, "prop": "imageinfo|categories", "cllimit": "max",
         "iiprop": "url|size|mime|extmetadata", "iiurlwidth": 1600,
         "iiextmetadatafilter": "LicenseShortName|Artist",
     }
@@ -117,9 +120,9 @@ def _commons_search(query: str, used: set[int], lock: threading.Lock,
     pages = sorted((r.json().get("query", {}).get("pages", {}) or {}).values(), key=score)
     out = []
     for p in pages:
-        if not _species_ok(p, query):
+        if not category and not _species_ok(p, query):
             continue
-        if not _BINOMIAL.match(query) and not _relevant(p.get("title", ""), query):
+        if not category and not _BINOMIAL.match(query) and not _relevant(p.get("title", ""), query):
             continue  # (a species query is already checked against title + categories)
         if photo and _NOT_PHOTO.search(p.get("title", "")):
             continue  # a "photo" beat must show a real photograph, not a map or results chart
@@ -142,7 +145,7 @@ def _commons_search(query: str, used: set[int], lock: threading.Lock,
 
 _VERDICT = {"type": "object", "additionalProperties": False, "required": ["ok", "what"],
             "properties": {"ok": {"type": "boolean"}, "what": {"type": "string"}}}
-MAX_CHECKS = 5          # vision checks per scene before giving up and using a card
+MAX_CHECKS = 6          # vision checks per scene before giving up and using a card
 
 
 def _verify(data: bytes, query: str, visual: str, about: str) -> tuple[bool, str]:
@@ -189,12 +192,17 @@ def _wikimedia(query: str, visual: str, out: Path, used: set[int], lock, about: 
     if visual == "map" and "map" not in query.lower():
         attempts.insert(0, f"{query} map")
     words = query.split()
-    if len(words) > 2:
+    m = _BINOMIAL.match(query)
+    if m:   # the species' own Commons category: every file there really is that animal
+        attempts.append(("cat", f"{m.group(1)} {m.group(2)}"))
+    elif len(words) > 2:
         attempts.append(" ".join(words[:2]))
     checks = 0
     for q in attempts:
+        cat = q[1] if isinstance(q, tuple) else ""
+        q = cat or q
         try:
-            hits = _commons_search(q, used, lock, photo=visual == "photo")
+            hits = _commons_search(q, used, lock, photo=visual == "photo", category=cat)
         except requests.RequestException as e:
             print(f"    [img] commons search failed ({e.__class__.__name__}); skipping")
             return None
