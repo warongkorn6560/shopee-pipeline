@@ -154,7 +154,7 @@ def look(image_jpeg: bytes, prompt: str, schema: dict) -> dict | None:
     client = anthropic.Anthropic(api_key=ENV["ANTHROPIC_API_KEY"], max_retries=3, timeout=120)
     try:
         msg = client.messages.create(
-            model=VISION_MODEL, max_tokens=400,
+            model=VISION_MODEL, max_tokens=1500,
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
                                              "data": base64.b64encode(image_jpeg).decode()}},
@@ -170,4 +170,5 @@ def look(image_jpeg: bytes, prompt: str, schema: dict) -> dict | None:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
+        print(f"  [vision] unreadable reply (stop: {msg.stop_reason}): {text[:120]!r}")
         return None

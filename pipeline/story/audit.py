@@ -70,7 +70,7 @@ def audit(channel_id: str, days: int = 3) -> list[dict]:
                        "Satellite maps, title cards, year cards and graphics are fine. List the cell numbers "
                        "whose main picture is BAD: a drawing, painting or old illustration plate instead of a "
                        "photo; a dead, roadkill, hunted, stuffed or museum-specimen animal, skull or bones; or "
-                       "an animal that is clearly not the one the title is about. 'notes' = short reasons.",
+                       "an animal that is clearly not the one the title is about. 'notes' = at most 25 words.",
                        SCHEMA) or {"bad_cells": [], "notes": "vision check failed"}
         row = {"id": v["id"], "title": v["title"], "created": v["createdAt"], **verdict,
                "published": {k: (x.get("video_id") or x.get("media_id")) if isinstance(x, dict) else x
