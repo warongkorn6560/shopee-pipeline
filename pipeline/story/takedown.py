@@ -28,7 +28,13 @@ def _fb(video_id: str, token: str) -> str:
 
 def _ig(media_id: str, token: str) -> str:
     r = requests.delete(f"{IG_GRAPH}/{media_id}", params={"access_token": token}, timeout=30)
-    return "deleted" if r.ok else f"failed {r.status_code}: {r.json().get('error', {}).get('message', '')[:120]}"
+    if r.ok:
+        return "deleted"
+    # The Instagram API can't delete posts: hand back the link so a person can delete it in the app.
+    link = requests.get(f"{IG_GRAPH}/{media_id}", params={"fields": "permalink", "access_token": token},
+                        timeout=30).json().get("permalink", "")
+    print(f"  IG-MANUAL {link or media_id}")
+    return "delete by hand"
 
 
 def _yt(video_id: str) -> str:
