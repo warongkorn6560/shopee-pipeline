@@ -49,6 +49,27 @@ def _sheet(frames: list[Image.Image], cols: int = 6) -> Image.Image:
     return sheet
 
 
+def check_clip(mp4: Path, title: str, sheet_path: Path | None = None) -> dict:
+    """{bad_cells, notes} for one rendered clip; bad_cells empty = every picture looks right.
+    None from the vision model (no Claude, or a failed call) comes back as checked=False."""
+    sheet = _sheet(_frames(mp4))
+    if sheet_path:
+        sheet.save(sheet_path, quality=80)
+    buf = io.BytesIO()
+    s = sheet.copy()
+    s.thumbnail((1568, 1568))
+    s.save(buf, "JPEG", quality=85)
+    verdict = look(buf.getvalue(),
+                   f"These numbered cells are frames from a Thai wildlife short about: {title!r}. "
+                   "Satellite maps, title cards, year cards and graphics are fine. List the cell numbers "
+                   "whose main picture is BAD: a drawing, painting or old illustration plate instead of a "
+                   "photo; a dead, roadkill, hunted, stuffed or museum-specimen animal, skull or bones; or "
+                   "an animal that is clearly not the one the title is about. 'notes' = at most 25 words.",
+                   SCHEMA)
+    return {**verdict, "checked": True} if verdict else {"bad_cells": [], "notes": "vision check failed",
+                                                          "checked": False}
+
+
 def audit(channel_id: str, days: int = 3) -> list[dict]:
     OUT.mkdir(parents=True, exist_ok=True)
     vids = [v for v in hub._call("videos-list", {"flow": "story", "days": days})["videos"]
@@ -58,20 +79,8 @@ def audit(channel_id: str, days: int = 3) -> list[dict]:
         full = hub._call("video", {"id": v["id"]})
         mp4 = OUT / f"{v['id']}.mp4"
         mp4.write_bytes(requests.get(full["url"], timeout=300).content)
-        sheet = _sheet(_frames(mp4))
+        verdict = check_clip(mp4, v["title"], OUT / f"{v['id']}.jpg")
         mp4.unlink()
-        sheet.save(OUT / f"{v['id']}.jpg", quality=80)
-        buf = io.BytesIO()
-        s = sheet.copy()
-        s.thumbnail((1568, 1568))
-        s.save(buf, "JPEG", quality=85)
-        verdict = look(buf.getvalue(),
-                       f"These numbered cells are frames from a Thai wildlife short about: {v['title']!r}. "
-                       "Satellite maps, title cards, year cards and graphics are fine. List the cell numbers "
-                       "whose main picture is BAD: a drawing, painting or old illustration plate instead of a "
-                       "photo; a dead, roadkill, hunted, stuffed or museum-specimen animal, skull or bones; or "
-                       "an animal that is clearly not the one the title is about. 'notes' = at most 25 words.",
-                       SCHEMA) or {"bad_cells": [], "notes": "vision check failed"}
         row = {"id": v["id"], "title": v["title"], "created": v["createdAt"], **verdict,
                "published": {k: (x.get("video_id") or x.get("media_id")) if isinstance(x, dict) else x
                              for k, x in (v.get("published") or {}).items()}}

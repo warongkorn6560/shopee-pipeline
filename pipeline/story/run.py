@@ -236,6 +236,14 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
             "social_caption": social,
         }, indent=2, ensure_ascii=False))
 
+        if live and plan.style not in ("sim", "mystery", "doodle") and photos:
+            # Last gate before anything is posted: look at the finished clip itself.
+            from .audit import check_clip
+            gate = check_clip(final, plan.title, run_dir / "contact_sheet.jpg")
+            print(f"  [gate] bad frames {gate['bad_cells']} — {gate['notes']}")
+            if gate["bad_cells"]:
+                raise RuntimeError(f"picture check failed, not posted: {gate['notes']}")
+
         if not live:
             print(f"  ✓ rendered (not delivered): {final}")
             return 0
