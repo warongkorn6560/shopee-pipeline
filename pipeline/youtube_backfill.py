@@ -4,7 +4,7 @@ was connected, skipped by YouTube's daily quota, or refused by Instagram's "too 
 throttle during a burst. Most-viewed first, spaced `gap` minutes apart so the platforms see a
 steady pace; stops early once the platform says its limit is reached.
 
-  python -m pipeline.youtube_backfill [max] [platform] [gap]   # platform: youtube (default) | instagram
+  python -m pipeline.youtube_backfill [max] [platform] [gap]   # platform: youtube (default) | instagram | tiktok
 """
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ import time
 from . import hub
 from .post_video import publish_video
 
-ID_KEY = {"youtube": "video_id", "instagram": "media_id"}
+ID_KEY = {"youtube": "video_id", "instagram": "media_id", "tiktok": "publish_id"}
 # the platform refuses more today — waiting for the next run is the only option
-LIMIT_HIT = ("exceeded the number of videos", "quotaExceeded", "too many actions", "rate limit")
+LIMIT_HIT = ("exceeded the number of videos", "quotaExceeded", "too many actions", "too many posts", "rate limit")
 
 
 def _has(v: dict, platform: str) -> bool:
@@ -25,15 +25,29 @@ def _has(v: dict, platform: str) -> bool:
     return isinstance(entry, dict) and bool(entry.get(ID_KEY[platform]))
 
 
+def _reachable(v: dict, platform: str) -> bool:
+    """False for a clip we took down, or a channel with no account on this platform (it would use up the run)."""
+    fb = (v.get("published") or {}).get("facebook")
+    if isinstance(fb, dict) and fb.get("status") == "deleted":
+        return False
+    return platform == "instagram" or hub._call("video", {"id": v["id"]}).get("primary", True)
+
+
 def run(limit: int = 3, platform: str = "youtube", gap: float = 0) -> int:
     videos = hub._call("videos-list", {"flow": "story", "days": 30}).get("videos", [])
     todo = [v for v in videos if not _has(v, platform)]
     todo.sort(key=lambda v: -((v.get("stats") or {}).get("totalViews") or 0))
     print(f"▶ {len(todo)} posted videos without {platform}; posting up to {limit}")
-    for k, v in enumerate(todo[:limit]):
-        if k and gap:
-            time.sleep(gap * 60)
+    tried = 0
+    for v in todo:
+        if tried >= limit:
+            break
         try:
+            if not _reachable(v, platform):
+                continue
+            if tried and gap:
+                time.sleep(gap * 60)
+            tried += 1
             entry = publish_video(v["id"], platform).get(platform) or {}
         except Exception as e:  # noqa: BLE001 — one failure must not stop the rest
             print(f"  {v['id']}: {type(e).__name__}: {str(e)[:200]}")
