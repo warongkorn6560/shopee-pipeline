@@ -1,0 +1,42 @@
+name: One-off story burst (wildlife, after voice reset)
+
+# ElevenLabs credits run out until 16 Nov 02:49 Bangkok. The 36 topics below wait on Hold;
+# an hour after the reset they go back to Ready and a 30-clip burst of ~80 s videos starts.
+# Facebook Reels caps at 90 s, so 80 s narration leaves room for the outro.
+on:
+  schedule:
+    - cron: "50 20 15 11 *"   # 16 Nov 03:50 Bangkok
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  burst:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only in 2026
+        if: github.event_name == 'schedule'
+        run: '[ "$(date -u +%Y)" = 2026 ] || { echo "one-off already done"; exit 1; }'
+      - name: Topics back to Ready
+        env:
+          PIPELINE_API_KEY: ${{ secrets.PIPELINE_API_KEY }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL || 'https://pipeline-dashboard-seven-kappa.vercel.app' }}
+          IDS: >-
+            e21f244e3a 88e3835a38 c5283828dd 8ec22ee910 035f39ab35 fa2c27a0be d0c6e488f5 9f6d365f47
+            908b784aaa 748e7d0396 a81745cd60 d083b7e5a1 4843e0a26a 7d1843f4ff 5afc13f156 b5b19eae3e
+            e0f7a07d7e a22d2614b6 0531e46b0b 560de98674 61052c4691 440e335a09 e54278fc4c b20000543f
+            4edfe8bb1c 7cffa2e05f 1f6934ad67 0c889b1b2d a3c9d1c037 4075b251eb 22e946c245 00c862b714
+            7c7c57cd3c f3a59876ab 3296c7e93c 47c201d142
+        run: |
+          for id in $IDS; do
+            curl -sf -X POST -H "Authorization: Bearer $PIPELINE_API_KEY" -H "Content-Type: application/json" \
+              -d "{\"flow\":\"story\",\"id\":\"$id\",\"patch\":{\"status\":\"Ready\"}}" \
+              "$DASHBOARD_URL/api/pipeline/update" >/dev/null && echo "ready $id"
+          done
+      - name: Start the burst
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run story-video.yml -R "$GITHUB_REPOSITORY" \
+            -f channel=fb-364496773402558 -f count=30 -f seconds=80
