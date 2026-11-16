@@ -46,6 +46,7 @@ _ENV_KEYS = (
     "GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
     "DASHBOARD_URL", "PIPELINE_API_KEY",
     "CLAUDE_MODEL", "CLAUDE_EFFORT", "TTS_MODEL", "SHOP_VOICE_ID", "STORY_TARGET_SECONDS", "STORY_MUSIC", "STORY_THEME", "STORY_CHANNEL_ID", "STORY_CHANNEL_PRIMARY", "STORY_STYLE_MIX", "STORY_STYLE",
+    "STORY_CHANNEL_STYLES", "STORY_3D_CAP_USD",
     "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN",
 )
 
@@ -196,6 +197,15 @@ STORY_CHANNEL_ID = _get("STORY_CHANNEL_ID", "")
 STORY_STYLE_MIX = _get("STORY_STYLE_MIX", "classic:80,reaction:20")
 STORY_STYLE = _get("STORY_STYLE", "").lower()
 STORY_CHANNEL_PRIMARY = _get("STORY_CHANNEL_PRIMARY", "true").lower() in ("1", "true", "yes")
+# Per-channel editing style, e.g. "ig-39769310626015715:mystery3d" (comma list). Channels not listed keep
+# their theme's default style.
+STORY_CHANNEL_STYLES = dict(p.split(":", 1) for p in _get("STORY_CHANNEL_STYLES", "").replace(" ", "").split(",")
+                            if ":" in p)
+# "mystery3d": AI character keyframes (fal) animated with Kling; this caps the fal spend per clip.
+STORY_3D_CAP_USD = float(_get("STORY_3D_CAP_USD", "5.0"))
+FAL_IMAGE_MODEL = "fal-ai/nano-banana"
+FAL_IMAGE_EDIT_MODEL = "fal-ai/nano-banana/edit"
+FAL_IMAGE_PRICE_USD = 0.039
 # auto      : AI illustration for "scene" visuals when available, real Wikimedia
 #             Commons images for maps/photos, designed text cards as last resort
 # wikimedia : Wikimedia Commons only (+ cards)

@@ -19,15 +19,17 @@ import traceback
 
 from .. import hub, llm, stats, voiceover
 from ..config import (
-    STORY_CHANNEL_ID, STORY_CHANNEL_PRIMARY, STORY_STYLE, STORY_STYLE_MIX, STORY_THEME,
+    STORY_CHANNEL_ID, STORY_CHANNEL_PRIMARY, STORY_CHANNEL_STYLES, STORY_STYLE, STORY_STYLE_MIX, STORY_THEME,
     COST_CAP_USD, OUTPUT_DIR, PUBLISH_MODE, STORY_AUTO_TOPIC, STORY_IMAGE_PRICE_USD,
     STORY_MAX_AI_IMAGES, STORY_SERIES_NAME, STORY_VOICE_ID, THAI_VOICES, WORK_DIR,
 )
 from ..publish import publish_story
 
 DOODLE_VOICE_ID = "yq05eeRaHPMGuWTVpqeP"      # Tonce — casual male
+MYSTERY3D_VOICE_ID = "jucSqawHKM1rUNf78oZQ"   # Duang — deep male storyteller
 from ..run import _log_spend, _silent_voice, _slug, posted_somewhere, run_url
-from . import doodle, doodle_render, images, maps, mystery, mystery_render, render, sim, sim_render, topics, writer
+from . import (doodle, doodle_render, images, maps, mystery, mystery3d, mystery3d_render, mystery_render, render, sim,
+               sim_render, topics, writer)
 
 def scene_durations(texts: list[str], alignment: dict | None, audio_len: float,
                     tail: float = 1.4) -> list[float]:
@@ -60,6 +62,8 @@ def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str
             social += "\n🖼 ภาพพื้นหลัง: " + " · ".join(credits)
     elif plan.style == "mystery":
         social += f"\n\n📖 {mystery.FICTION}"
+    elif plan.style == "mystery3d":
+        social += f"\n\n📖 {mystery.FICTION}\n🎬 ภาพและวิดีโอสร้างด้วย AI"
     elif plan.style == "sim":
         assumptions = " · ".join(getattr(plan, "assumptions", []) or [])
         if assumptions:
@@ -82,7 +86,8 @@ def _pick_style() -> str:
     if STORY_THEME == "money":                 # own renderer, no maps or photos
         return "sim"
     if STORY_THEME == "mystery":               # doodle stories; STORY_STYLE=mystery forces the noir puzzle
-        return "mystery" if STORY_STYLE == "mystery" else "doodle"
+        forced = STORY_STYLE or STORY_CHANNEL_STYLES.get(STORY_CHANNEL_ID, "")   # mystery3d = 3D animated
+        return forced if forced in ("mystery", "mystery3d") else "doodle"
     known = ("classic", "reaction")
     if STORY_STYLE in known:
         return STORY_STYLE
@@ -184,7 +189,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         print(f"  style: {style}")
         if offline:
             plan = (sim.mock_sim_story(topic.topic) if style == "sim" else
-                    mystery.mock_mystery(topic.topic) if style == "mystery" else
+                    mystery.mock_mystery(topic.topic) if style in ("mystery", "mystery3d") else
                     doodle.mock_doodle(topic.topic) if style == "doodle" else writer.mock_story(topic.topic))
         else:
             plan = writer.write_reviewed_story(topic.topic, topic.angle, style)
@@ -197,6 +202,9 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
                               "sources": plan.sources}, indent=2, ensure_ascii=False))
             return 0
 
+        visuals: tuple[dict, dict, float] = ({}, {}, 0.0)
+        if plan.style == "mystery3d" and not offline:   # before the voice: a failed shot costs no TTS quota
+            visuals = mystery3d.make_visuals(plan, run_dir)
         photo_idx = [i for i, sc in enumerate(plan.scenes) if sc.visual == "photo"]
         photos: dict[int, images.SceneImage] = {}
         if photo_idx and not offline:
@@ -222,6 +230,8 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
             speed = None
             if plan.style == "doodle":          # first person "ผม": one casual male voice, a little quicker
                 narrator, speed = DOODLE_VOICE_ID, 1.08
+            elif plan.style == "mystery3d":     # one recurring narrator for the recurring detective
+                narrator = MYSTERY3D_VOICE_ID
             print(f"  narrator: {THAI_VOICES.get(narrator, narrator)}")
             voice, alignment = voiceover.synthesize_with_timestamps(" ".join(texts), voice, narrator, speed=speed)
         audio_len = voiceover.audio_duration(voice)
@@ -231,6 +241,8 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         out_name = f"story_{_slug(plan.title)}.mp4"
         final = (sim_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "sim" else
                  mystery_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "mystery" else
+                 mystery3d_render.render(plan, durs, voice, run_dir, out_name, *visuals[:2])
+                 if plan.style == "mystery3d" else
                  doodle_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "doodle" else
                  render.render(plan, durs, voice, run_dir, out_name, photos))
         review, social = _texts(plan, list(photos.values()))
@@ -242,7 +254,10 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
             "social_caption": social,
         }, indent=2, ensure_ascii=False))
 
-        if live and plan.style not in ("sim", "mystery", "doodle") and photos:
+        fal_usd = visuals[2]
+        if fal_usd:
+            print(f"  fal spend ${fal_usd:.2f} · {len(plan.spoken)} TTS chars")
+        if live and plan.style not in ("sim", "mystery", "mystery3d", "doodle") and photos:
             # Last gate before anything is posted: look at the finished clip itself.
             from .audit import check_clip
             gate = check_clip(final, plan.title, run_dir / "contact_sheet.jpg")
@@ -260,7 +275,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
             videoId=up["videoId"], flow="story", refId=topic.ref or "", title=plan.title,
             pathname=up["pathname"], size=final.stat().st_size, caption=social,
             reviewText=plan.narration, sources=plan.sources, runUrl=run_url(),
-            cost={**llm.USAGE, "ttsChars": len(plan.spoken)},
+            cost={**llm.USAGE, "ttsChars": len(plan.spoken), **({"falUsd": fal_usd} if fal_usd else {})},
             channelId=STORY_CHANNEL_ID, style=plan.style,
         )
         hub.register_video(**video, status="review")
@@ -277,7 +292,8 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         hub.register_video(**video, published=res, status="posted" if posted else "review")
         topics.update(topic.ref, status=topics.POSTED if posted else topics.DONE, title=plan.title,
                       published=_summary(res), videoId=up["videoId"])
-        _log_spend(plan.title, images.ai_images_used(list(photos.values())) * STORY_IMAGE_PRICE_USD, str(final), flow="story")
+        _log_spend(plan.title, images.ai_images_used(list(photos.values())) * STORY_IMAGE_PRICE_USD + fal_usd,
+                   str(final), flow="story")
         print("  ✓ done")
         return 0
 

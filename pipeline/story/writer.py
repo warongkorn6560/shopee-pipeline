@@ -615,7 +615,7 @@ def compliance_review(plan: "StoryPlan") -> tuple[bool, list[str]]:
         beats = "\n".join(f"{i + 1}. [{s.visual}] {s.narration}" + (f" (tag: {s.punch})" if s.punch else "")
                           for i, s in enumerate(plan.scenes))
         beats = f"Cast: {'; '.join(names)}\n{beats}\nWHY THE TWIST WORKS: {plan.explanation}"
-    if plan.style == "mystery":
+    if plan.style in ("mystery", "mystery3d"):          # same fair-play check for the 3D episodes
         names = [f"{k}: {x['name']} ({x['role']})" for k, x in enumerate(plan.suspects)]
         beats = "\n".join(f"{i + 1}. [{s.visual}{f' #{s.clue}' if s.clue else ''}] "
                           f"{f'(tag: {s.card_title}) ' if s.card_title else ''}{s.narration}"
@@ -644,6 +644,9 @@ def write_reviewed_story(topic: str, angle: str = "", style: str = "classic") ->
     elif style == "mystery":
         from .mystery import write_mystery
         write = lambda t, a, _s: write_mystery(t, a)      # noqa: E731
+    elif style == "mystery3d":
+        from .mystery3d import write_mystery3d
+        write = lambda t, a, _s: write_mystery3d(t, a)    # noqa: E731
     elif style == "doodle":
         from .doodle import write_doodle
         write = lambda t, a, _s: write_doodle(t, a)       # noqa: E731

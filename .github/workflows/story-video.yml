@@ -19,7 +19,7 @@ on:
         required: false
         default: false
       style:
-        description: "Editing style for this run: classic or reaction (empty = STORY_STYLE_MIX)"
+        description: "Editing style for this run: classic or reaction; mystery or mystery3d on a mystery channel (empty = default)"
         required: false
         default: ""
       count:
@@ -119,6 +119,8 @@ jobs:
           STORY_THEME: ${{ matrix.theme || vars.STORY_THEME || 'wildlife' }}
           STORY_STYLE_MIX: ${{ vars.STORY_STYLE_MIX || 'classic:80,reaction:20' }}
           STORY_STYLE: ${{ inputs.style }}
+          STORY_CHANNEL_STYLES: ${{ vars.STORY_CHANNEL_STYLES }}   # e.g. "ig-39769310626015715:mystery3d"
+          FAL_KEY: ${{ secrets.FAL_KEY }}                          # mystery3d: character sheets + Kling clips
           STORY_MUSIC: ${{ vars.STORY_MUSIC }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           TTS_PROVIDER: elevenlabs
