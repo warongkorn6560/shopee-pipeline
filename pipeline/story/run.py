@@ -213,6 +213,17 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         if photo_idx and not offline:
             got = images.fetch_all([plan.scenes[i] for i in photo_idx], run_dir)
             photos = {i: img for i, img in zip(photo_idx, got) if img.provider != "card"}
+            if live and photos and plan.style not in ("sim", "mystery", "mystery3d", "toon3d", "doodle"):
+                # Check the pictures before the voice: drop the bad ones (the good ones fill in below)
+                # and only give up, still without spending TTS quota, when too few are left.
+                from .audit import check_photos
+                keys = list(photos)
+                pre = check_photos([photos[i].path for i in keys], plan.title)
+                bad = {keys[n - 1] for n in pre["bad_cells"] if 0 < n <= len(keys)}
+                print(f"  [pre-gate] dropped {len(bad)}/{len(keys)} photos — {pre['notes']}")
+                photos = {i: img for i, img in photos.items() if i not in bad}
+                if len(photos) < 2:
+                    raise RuntimeError(f"picture check failed before voice, not posted: {pre['notes']}")
             # A rare animal may have only a couple of verified photos: show those again (a new crop and
             # move each time) rather than drop to a plain graphic card.
             good = list(photos.values())

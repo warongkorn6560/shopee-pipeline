@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 import requests
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 
 from .. import hub
 from ..config import OUTPUT_DIR
@@ -65,6 +65,25 @@ def check_clip(mp4: Path, title: str, sheet_path: Path | None = None) -> dict:
                    "whose main picture is BAD: a drawing, painting or old illustration plate instead of a "
                    "photo; a dead, roadkill, hunted, stuffed or museum-specimen animal, skull or bones; or "
                    "an animal that is clearly not the one the title is about. 'notes' = at most 25 words.",
+                   SCHEMA)
+    return {**verdict, "checked": True} if verdict else {"bad_cells": [], "notes": "vision check failed",
+                                                          "checked": False}
+
+
+def check_photos(paths: list[Path], title: str) -> dict:
+    """Same check as check_clip, but on the picked photos before any voice is made: a bad
+    picture caught here costs no TTS quota. Cell n is paths[n-1]."""
+    frames = [ImageOps.pad(Image.open(p).convert("RGB"), (270, 360), color=(0, 0, 0)) for p in paths]
+    buf = io.BytesIO()
+    s = _sheet(frames)
+    s.thumbnail((1568, 1568))
+    s.save(buf, "JPEG", quality=85)
+    verdict = look(buf.getvalue(),
+                   f"These numbered cells are photos picked for a Thai wildlife short about: {title!r}. "
+                   "List the cell numbers that are BAD: a drawing, painting, render or old illustration "
+                   "plate instead of a photo; a dead, roadkill, hunted, stuffed or museum-specimen animal, "
+                   "skull or bones; or an animal that is clearly not the one the title is about. "
+                   "'notes' = at most 25 words.",
                    SCHEMA)
     return {**verdict, "checked": True} if verdict else {"bad_cells": [], "notes": "vision check failed",
                                                           "checked": False}
