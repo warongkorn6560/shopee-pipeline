@@ -28,7 +28,8 @@ from ..publish import publish_story
 DOODLE_VOICE_ID = "yq05eeRaHPMGuWTVpqeP"      # Tonce — casual male
 MYSTERY3D_VOICE_ID = "jucSqawHKM1rUNf78oZQ"   # Duang — deep male storyteller
 from ..run import _log_spend, _silent_voice, _slug, posted_somewhere, run_url
-from . import (doodle, doodle_render, images, maps, mystery, mystery3d, mystery3d_render, mystery_render, render, sim,
+from . import (doodle, doodle_render, images, maps, mystery, mystery3d, mystery3d_render, mystery_render, mystery_toon,
+               render, sim,
                sim_render, topics, writer)
 
 def scene_durations(texts: list[str], alignment: dict | None, audio_len: float,
@@ -64,6 +65,8 @@ def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str
         social += f"\n\n📖 {mystery.FICTION}"
     elif plan.style == "mystery3d":
         social += f"\n\n📖 {mystery.FICTION}\n🎬 ภาพและวิดีโอสร้างด้วย AI"
+    elif plan.style == "toon3d":
+        social += f"\n\n📖 {mystery.FICTION}\n🎬 แอนิเมชัน 3D สร้างด้วยโปรแกรมคอมพิวเตอร์"
     elif plan.style == "sim":
         assumptions = " · ".join(getattr(plan, "assumptions", []) or [])
         if assumptions:
@@ -87,7 +90,7 @@ def _pick_style() -> str:
         return "sim"
     if STORY_THEME == "mystery":               # doodle stories; STORY_STYLE=mystery forces the noir puzzle
         forced = STORY_STYLE or STORY_CHANNEL_STYLES.get(STORY_CHANNEL_ID, "")   # mystery3d = 3D animated
-        return forced if forced in ("mystery", "mystery3d") else "doodle"
+        return forced if forced in ("mystery", "mystery3d", "toon3d") else "doodle"
     known = ("classic", "reaction")
     if STORY_STYLE in known:
         return STORY_STYLE
@@ -154,7 +157,7 @@ def _summary(res: dict) -> str:
 
 
 def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = False,
-             topic_override: str | None = None) -> int:
+             topic_override: str | None = None, silent: bool = False) -> int:
     stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = WORK_DIR / "story" / stamp
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -189,7 +192,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         print(f"  style: {style}")
         if offline:
             plan = (sim.mock_sim_story(topic.topic) if style == "sim" else
-                    mystery.mock_mystery(topic.topic) if style in ("mystery", "mystery3d") else
+                    mystery.mock_mystery(topic.topic) if style in ("mystery", "mystery3d", "toon3d") else
                     doodle.mock_doodle(topic.topic) if style == "doodle" else writer.mock_story(topic.topic))
         else:
             plan = writer.write_reviewed_story(topic.topic, topic.angle, style)
@@ -219,8 +222,8 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
 
         voice = run_dir / "voice.mp3"
         texts = [s.spoken or s.narration for s in plan.scenes]
-        if offline:
-            _silent_voice(voice, seconds=max(len(" ".join(texts)) / 13, 10))
+        if offline or silent:                   # silent: real script, no TTS quota spent (visual check)
+            _silent_voice(voice, seconds=max(len(" ".join(texts)) / writer.CHARS_PER_SECOND, 10))
             alignment = None
         else:
             left = voiceover.remaining_characters()
@@ -230,7 +233,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
             speed = None
             if plan.style == "doodle":          # first person "ผม": one casual male voice, a little quicker
                 narrator, speed = DOODLE_VOICE_ID, 1.08
-            elif plan.style == "mystery3d":     # one recurring narrator for the recurring detective
+            elif plan.style in ("mystery3d", "toon3d"):   # one recurring narrator for the recurring detective
                 narrator = MYSTERY3D_VOICE_ID
             print(f"  narrator: {THAI_VOICES.get(narrator, narrator)}")
             voice, alignment = voiceover.synthesize_with_timestamps(" ".join(texts), voice, narrator, speed=speed)
@@ -243,6 +246,9 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
                  mystery_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "mystery" else
                  mystery3d_render.render(plan, durs, voice, run_dir, out_name, *visuals[:2])
                  if plan.style == "mystery3d" else
+                 mystery3d_render.render(plan, durs, voice, run_dir, out_name,
+                                         mystery_toon.render_beats(plan, durs, run_dir), {})
+                 if plan.style == "toon3d" else
                  doodle_render.render(plan, durs, voice, run_dir, out_name) if plan.style == "doodle" else
                  render.render(plan, durs, voice, run_dir, out_name, photos))
         review, social = _texts(plan, list(photos.values()))
@@ -257,7 +263,7 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         fal_usd = visuals[2]
         if fal_usd:
             print(f"  fal spend ${fal_usd:.2f} · {len(plan.spoken)} TTS chars")
-        if live and plan.style not in ("sim", "mystery", "mystery3d", "doodle") and photos:
+        if live and plan.style not in ("sim", "mystery", "mystery3d", "toon3d", "doodle") and photos:
             # Last gate before anything is posted: look at the finished clip itself.
             from .audit import check_clip
             gate = check_clip(final, plan.title, run_dir / "contact_sheet.jpg")
@@ -310,5 +316,6 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="print the plan only")
     ap.add_argument("--offline", action="store_true", help="mock plan + cards, no API calls")
     ap.add_argument("--no-publish", action="store_true", help="render only; no upload, Telegram, or queue change")
+    ap.add_argument("--silent", action="store_true", help="real script, no narration (saves TTS quota)")
     args = ap.parse_args()
-    return run_once(args.dry_run, args.offline, args.no_publish, args.topic)
+    return run_once(args.dry_run, args.offline, args.no_publish, args.topic, args.silent)

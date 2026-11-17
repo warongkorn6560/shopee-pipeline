@@ -19,7 +19,7 @@ on:
         required: false
         default: false
       style:
-        description: "Editing style for this run: classic or reaction; mystery or mystery3d on a mystery channel (empty = default)"
+        description: "Editing style for this run: classic or reaction; mystery, toon3d or mystery3d on a mystery channel (empty = default)"
         required: false
         default: ""
       count:
@@ -104,6 +104,13 @@ jobs:
           pip install -r requirements.txt
           python -c "from PIL import features; assert features.check('raqm'), 'Pillow has no raqm: Thai text would render wrong'; print('raqm ok')"
 
+      - name: toon3d renderer (free 3D mystery style)
+        if: inputs.style == 'toon3d' || contains(format(',{0},', vars.STORY_CHANNEL_STYLES), format(',{0}:toon3d,', matrix.id))
+        working-directory: pipeline/story/toon3d
+        run: |
+          npm ci --no-audit --no-fund
+          npx puppeteer browsers install chrome-headless-shell
+
       - name: Generate + deliver one story
         env:
           TOPIC: ${{ inputs.topic }}
@@ -119,7 +126,7 @@ jobs:
           STORY_THEME: ${{ matrix.theme || vars.STORY_THEME || 'wildlife' }}
           STORY_STYLE_MIX: ${{ vars.STORY_STYLE_MIX || 'classic:80,reaction:20' }}
           STORY_STYLE: ${{ inputs.style }}
-          STORY_CHANNEL_STYLES: ${{ vars.STORY_CHANNEL_STYLES }}   # e.g. "ig-39769310626015715:mystery3d"
+          STORY_CHANNEL_STYLES: ${{ vars.STORY_CHANNEL_STYLES }}   # e.g. "ig-39769310626015715:toon3d"
           FAL_KEY: ${{ secrets.FAL_KEY }}                          # mystery3d: character sheets + Kling clips
           STORY_MUSIC: ${{ vars.STORY_MUSIC }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}

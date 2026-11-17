@@ -1,0 +1,45 @@
+name: toon3d render check
+
+# Renders the offline sample mystery in the free 3D style (toon3d) on a CPU-only runner: no API calls,
+# no voice, nothing posted. Shows how long a clip takes and uploads the mp4 to look at.
+on:
+  workflow_dispatch:
+    inputs:
+      width:
+        description: "Render width in px (1080 = full HD; 720 renders ~2x faster, upscaled)"
+        required: false
+        default: "1080"
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-media
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: toon3d renderer
+        working-directory: pipeline/story/toon3d
+        run: |
+          npm ci --no-audit --no-fund
+          npx puppeteer browsers install chrome-headless-shell
+      - name: Render the sample episode
+        env:
+          STORY_THEME: mystery
+          STORY_STYLE: toon3d
+          TOON3D_WIDTH: ${{ inputs.width }}
+        run: |
+          nproc
+          start=$(date +%s)
+          python -m pipeline.story --offline
+          echo "total render: $(( $(date +%s) - start )) s"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: toon3d-sample
+          path: output/story_*.mp4
+          retention-days: 7

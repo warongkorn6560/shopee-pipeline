@@ -1,0 +1,10 @@
+{
+  "name": "toon3d-render",
+  "private": true,
+  "type": "module",
+  "description": "Renders the mystery toon3d shots: three.js in headless Chromium with software WebGL (SwiftShader).",
+  "dependencies": {
+    "puppeteer": "24.10.0",
+    "three": "0.180.0"
+  }
+}
