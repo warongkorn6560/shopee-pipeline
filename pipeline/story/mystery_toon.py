@@ -104,7 +104,7 @@ def render_beats(plan: MysteryPlan, beat_durs: list[float], run_dir: Path) -> di
     if not (TOON_DIR / "node_modules" / "puppeteer").exists():
         raise RuntimeError(f"toon3d renderer not installed: run `npm ci && npx puppeteer browsers install "
                            f"chrome-headless-shell` in {TOON_DIR}")
-    width = int(ENV.get("TOON3D_WIDTH") or os.environ.get("TOON3D_WIDTH") or 1080)
+    width = int(ENV.get("TOON3D_WIDTH") or os.environ.get("TOON3D_WIDTH") or 720)   # upscaled to 1080 by the overlay pass
     first_clue = next((s.icon for s in plan.scenes if s.visual == "clue"), "ring")
     beats, clips = [], {}
     for i, (sc, shot, d) in enumerate(zip(plan.scenes, shots(plan), beat_durs)):

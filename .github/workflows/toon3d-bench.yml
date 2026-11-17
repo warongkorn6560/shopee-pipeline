@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       width:
-        description: "Render width in px (1080 = full HD; 720 renders ~2x faster, upscaled)"
+        description: "Render width in px (720 = default, upscaled to 1080; 1080 renders ~2x slower)"
         required: false
-        default: "1080"
+        default: "720"
 
 jobs:
   render:

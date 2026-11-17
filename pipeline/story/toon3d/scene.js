@@ -304,7 +304,7 @@ function prop(icon) {
     at(part(cyl(0.05, 0.042, 0.11, 20), 0xf5efe6), 0, 0.055, 0, g);
     at(new THREE.Mesh(cyl(0.045, 0.045, 0.005, 20), toon(0x3b2416)), 0, 0.1, 0, g);
     const h = at(part(new THREE.TorusGeometry(0.03, 0.009, 6, 12, Math.PI), 0xf5efe6), 0.05, 0.06, 0, g); h.rotation.z = -Math.PI / 2;
-    g.userData.steam = [0, 1, 2].map((i) => at(new THREE.Mesh(sph(0.02, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })), 0, 0.14 + i * 0.05, 0, g));
+    g.userData.steam = [0, 1, 2].map((i) => at(new THREE.Mesh(sph(0.008, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, depthWrite: false })), 0, 0.14 + i * 0.05, 0, g));
   } else if (icon === "phone") {
     at(part(rbox(0.08, 0.012, 0.16, 0.006), 0x15151a), 0, 0.006, 0, g);
     const scr = at(new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.145), new THREE.MeshBasicMaterial({ map: canvasTex(64, 128, (x, w, h) => {
@@ -508,7 +508,7 @@ function furnish(kind, R0) {
     }
     for (const [x, z] of [[1.6, -1.2], [-1.7, -2.0]]) {
       const tb = at(new THREE.Group(), x, 0, z, g);
-      at(part(cyl(0.38, 0.38, 0.04, 28), 0xe9e2d0), 0, 0.74, 0, tb);
+      at(part(cyl(0.38, 0.38, 0.04, 28), 0x8a5a3a), 0, 0.74, 0, tb);
       at(part(cyl(0.035, 0.05, 0.72, 10), 0x2a2a2e), 0, 0.36, 0, tb);
       for (const s of [-1, 1]) {
         const ch = at(new THREE.Group(), s * 0.6, 0, 0, tb);
@@ -527,7 +527,7 @@ export function setup(j) {
   job = j; W = j.width; Hh = j.height;
   const canvas = document.getElementById("c");
   canvas.width = W; canvas.height = Hh;
-  R = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  R = new THREE.WebGLRenderer({ canvas, antialias: j.antialias !== false, preserveDrawingBuffer: true });
   R.setPixelRatio(1);
   R.setSize(W, Hh, false);
   R.shadowMap.enabled = true;
@@ -612,7 +612,7 @@ export function draw(b, f) {
     : beat.icon === "door" ? R0.door.clone() : tbl.clone();
   if (pr) { pr.position.copy(prPos); pr.visible = beat.icon !== "door"; pr.rotation.y = 0.4; }
   if (pr?.userData.hands) { pr.userData.hands[0].rotation.z = -t * 0.2; pr.userData.hands[1].rotation.z = -t * 0.02 - 1.2; }
-  if (pr?.userData.steam) pr.userData.steam.forEach((s, i) => { const k = (t * 0.4 + i / 3) % 1; s.position.y = 0.12 + k * 0.18; s.material.opacity = 0.35 * (1 - k); s.scale.setScalar(1 + k); });
+  if (pr?.userData.steam) pr.userData.steam.forEach((s, i) => { const k = (t * 0.4 + i / 3) % 1; s.position.y = 0.12 + k * 0.18; s.material.opacity = 0.25 * (1 - k); s.scale.setScalar(1 + k); });
   if (pr?.userData.bulb) pr.userData.bulb.material.color.setHex(Math.sin(t * 23) > 0.6 || Math.sin(t * 7) > 0.85 ? 0x55452a : 0xffe2a0);
   if (pr?.userData.spin) pr.userData.spin.rotation.set(Math.PI / 2 - 0.4, 0, t * 0.6);
   const pos = R0.rain.geometry.attributes.position;          // rain falls
@@ -623,7 +623,7 @@ export function draw(b, f) {
   pos.needsUpdate = true;
   const n_s = sus.length;
   const pen_on = (from, to) => {
-    pen.intensity = 18; pen.position.copy(from); pen.target.position.copy(to);
+    pen.intensity = 9; pen.position.copy(from); pen.target.position.copy(to);
     beam.visible = true; beam.position.copy(from); beam.lookAt(to); beam.scale.set(1, 1, from.distanceTo(to));
   };
   const emo = beat.emotion || "neutral";
@@ -686,8 +686,11 @@ export function draw(b, f) {
     hemi.intensity = 0.8;
     const floorProp = beat.icon === "footprint" || beat.icon === "umbrella";
     if (beat.icon === "door") {                                    // the room's door, seen from across the room
-      pen.intensity = 40; hemi.intensity = 1.3;
-      lookAt(V(lerp(-1.4, -1.6, ease(p)), 1.35, lerp(2.9, 2.6, ease(p))), V(-3.5, 1.05, 1.1), 44);
+      hemi.intensity = 1.4;
+      place(det, -2.75, 1.75, 0, true); det.root.rotation.y = faceTo(det, -3.5, 1.2);
+      pose(det, t, "inspect", "think", 0);
+      pen_on(V(-3.0, 1.45, 1.55), V(-3.48, 1.0, 1.25)); pen.intensity = 30;
+      lookAt(V(lerp(-0.4, -0.7, ease(p)), 1.45, lerp(4.0, 3.6, ease(p))), V(-3.0, 1.0, 1.0), 44);
       R.render(scene, cam);
       return R.domElement.toDataURL("image/jpeg", 0.9);
     }
