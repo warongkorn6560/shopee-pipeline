@@ -79,8 +79,6 @@ def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str
         if sources:
             social += f"\n\n📚 แหล่งข้อมูล: {sources}"
         social += "\n🛰 " + "\n🖼 ".join(credits)
-        if item := shelf.pick(STORY_CHANNEL_ID, plan.topic, plan.title):
-            social += shelf.caption_line(item)
     review = (f"📖 {STORY_SERIES_NAME} — {plan.title}\n\n{social}\n\n"
               f"หัวข้อ: {plan.topic}\nโหมด: {PUBLISH_MODE}")
     return review, social
