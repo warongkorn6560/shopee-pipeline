@@ -123,8 +123,10 @@ def publish(video: Path, plan, product, mode: str | None = None, review_url: str
 # ---------------------------------------------------------------------------
 def publish_story(video: Path, review_text: str, social_caption: str,
                   mode: str | None = None, video_url: str = "", video_id: str = "", title: str = "",
-                  instagram: dict | None = None) -> dict:
-    """`instagram`: the channel's own Instagram account ({userId, token}) when it has one."""
+                  instagram: dict | None = None, facebook_extra: str = "") -> dict:
+    """`instagram`: the channel's own Instagram account ({userId, token}) when it has one.
+    `facebook_extra`: appended to the Facebook caption only (a Shopee affiliate link there makes the reel
+    commission eligible; Instagram/TikTok can't click caption links)."""
     mode = mode or PUBLISH_MODE
     buttons = review_buttons(video_id) if video_id and mode != "auto" else ""
     result: dict = {"telegram": telegram_send_video(video, review_text, buttons)}
@@ -143,10 +145,10 @@ def publish_story(video: Path, review_text: str, social_caption: str,
                     ch = {}
                 if not (ch.get("pageId") and ch.get("token")):
                     return {"skipped": "channel has no Facebook page"}      # e.g. an Instagram-only channel
-                return _fb.publish_reel(video, social_caption, ch["pageId"], ch["token"])
+                return _fb.publish_reel(video, social_caption + facebook_extra, ch["pageId"], ch["token"])
             result["facebook"] = _safe(_page)
         else:
-            result["facebook"] = _safe(_fb.publish_reel, video, social_caption)
+            result["facebook"] = _safe(_fb.publish_reel, video, social_caption + facebook_extra)
         if instagram and instagram.get("token"):     # the channel's own Instagram account
             result["instagram"] = _safe(_ig.publish, video, social_caption[:2000], video_url, instagram)
         if STORY_CHANNEL_PRIMARY:  # the single TikTok/Instagram account follows the primary page

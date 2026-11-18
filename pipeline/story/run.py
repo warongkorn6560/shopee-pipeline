@@ -306,7 +306,8 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
         tag_hint = f"\n\n🏷 ปักสินค้าใน IG: ⋯ › แก้ไข › แท็กสินค้า › ค้น \"{tag['name'][:40]}\"" if tag else ""
         res = publish_story(final, f"{review}\n\n▶️ ตรวจในเว็บ: {up['reviewUrl']}{tag_hint}", social,
                             video_url=stored.get("url", ""), video_id=up["videoId"], title=plan.title,
-                            instagram=stored.get("instagram") if isinstance(stored.get("instagram"), dict) else None)
+                            instagram=stored.get("instagram") if isinstance(stored.get("instagram"), dict) else None,
+                            facebook_extra=shelf.caption_line(tag) if tag else "")
         print(f"  publish: {res}")
         posted = posted_somewhere(res)
         hub.register_video(**video, published=res, status="posted" if posted else "review")

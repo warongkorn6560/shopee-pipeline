@@ -44,7 +44,7 @@ def pick(channel_id: str, topic: str, title: str) -> dict | None:
 
 def caption_line(item: dict) -> str:
     return (f"\n\n🛒 {item.get('label') or item['name'][:60]}\n🔗 {item['url']}\n"
-            "👉 ดูใน IG: กดลิงก์ในโปรไฟล์ › ของจากคลิป\n(ลิงก์ affiliate — ช่องได้ค่าคอมเล็กน้อยเมื่อสั่งผ่านลิงก์)")
+            "(ลิงก์ affiliate — ช่องได้ค่าคอมเล็กน้อยเมื่อสั่งผ่านลิงก์)")
 
 
 def import_csv(path: str, tags: list[str]) -> int:
