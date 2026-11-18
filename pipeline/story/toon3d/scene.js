@@ -141,7 +141,8 @@ function character(spec) {
     strap.rotation.z = -0.75;
   }
 
-  const head = at(new THREE.Group(), 0, 0.8, 0, torso);
+  at(part(new THREE.CylinderGeometry(0.075, 0.09, 0.22, 14), skin, { thick: 0.008 }), 0, 0.68, 0, torso);   // neck
+  const head = at(new THREE.Group(), 0, 0.74, 0, torso);
   const skull = at(part(sph(0.25, 24, 18), skin, { thick: 0.01 }), 0, 0.2, 0, head);
   skull.scale.set(1, 1.02, 0.95);
   for (const s of [-1, 1]) at(part(sph(0.055), skin), s * 0.245, 0.19, 0, head);
