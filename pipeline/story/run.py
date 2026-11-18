@@ -29,7 +29,7 @@ DOODLE_VOICE_ID = "yq05eeRaHPMGuWTVpqeP"      # Tonce — casual male
 MYSTERY3D_VOICE_ID = "jucSqawHKM1rUNf78oZQ"   # Duang — deep male storyteller
 from ..run import _log_spend, _silent_voice, _slug, posted_somewhere, run_url
 from . import (doodle, doodle_render, images, maps, mystery, mystery3d, mystery3d_render, mystery_render, mystery_toon,
-               render, sim,
+               render, shelf, sim,
                sim_render, topics, writer)
 
 def scene_durations(texts: list[str], alignment: dict | None, audio_len: float,
@@ -79,6 +79,8 @@ def _texts(plan: writer.StoryPlan, photos: list[images.SceneImage]) -> tuple[str
         if sources:
             social += f"\n\n📚 แหล่งข้อมูล: {sources}"
         social += "\n🛰 " + "\n🖼 ".join(credits)
+        if item := shelf.pick(STORY_CHANNEL_ID, plan.topic, plan.title):
+            social += shelf.caption_line(item)
     review = (f"📖 {STORY_SERIES_NAME} — {plan.title}\n\n{social}\n\n"
               f"หัวข้อ: {plan.topic}\nโหมด: {PUBLISH_MODE}")
     return review, social
