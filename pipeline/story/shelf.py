@@ -7,7 +7,7 @@ Affiliate products that fit the wildlife clips (binoculars for a bird story, a p
 Edits by hand: copy shelf.json to dashboard/lib/shelf.json too (the public /shop page).
 
 shelf.json: {"channels": [...], "items": [{"name", "url", "label", "tags": [...], "any": bool}]}
-An item matches when one of its tags appears in the clip's topic or title; items with "any" fit every
+An item matches when one of its tags appears in the clip's subject (first word of the title); items with "any" fit every
 wildlife clip and are used when nothing more specific matches. No match = no link (never a cat-litter
 link under a tiger story). Free: plain keyword matching, no model call.
 """
@@ -32,7 +32,9 @@ def pick(channel_id: str, topic: str, title: str) -> dict | None:
     shelf = _load()
     if channel_id not in shelf["channels"]:
         return None
-    text = f"{topic} {title}".lower()
+    # Only the subject (first word of the title, e.g. "นกชนหิน"): Thai has no spaces, so a tag like "นก"
+    # also hides inside longer text ("บนก้อน") and the topic notes mention other animals.
+    text = (title.split() or [topic])[0].lower()
     items = [i for i in shelf["items"] if i.get("url")]
     hits = [i for i in items if any(t.lower() in text for t in i.get("tags", []))] or \
            [i for i in items if i.get("any")]
