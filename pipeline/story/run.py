@@ -303,7 +303,10 @@ def run_once(dry_run: bool = False, offline: bool = False, no_publish: bool = Fa
             stored = hub._call("video", {"id": up["videoId"]})
         except hub.PlatformError:
             stored = {}
-        res = publish_story(final, f"{review}\n\n▶️ ตรวจในเว็บ: {up['reviewUrl']}", social,
+        # Instagram's affiliate product tags exist only in the app (no API), so tell the owner what to tag.
+        tag = shelf.pick(STORY_CHANNEL_ID, plan.topic, plan.title)
+        tag_hint = f"\n\n🏷 ปักสินค้าใน IG: ⋯ › แก้ไข › แท็กสินค้า › ค้น \"{tag['name'][:40]}\"" if tag else ""
+        res = publish_story(final, f"{review}\n\n▶️ ตรวจในเว็บ: {up['reviewUrl']}{tag_hint}", social,
                             video_url=stored.get("url", ""), video_id=up["videoId"], title=plan.title,
                             instagram=stored.get("instagram") if isinstance(stored.get("instagram"), dict) else None)
         print(f"  publish: {res}")
