@@ -4,6 +4,8 @@ Affiliate products that fit the wildlife clips (binoculars for a bird story, a p
   python -m pipeline.story.shelf import <BatchProductLinks.csv> [tag ...]   # add Shopee/Lazada offer links
   python -m pipeline.story.shelf show
 
+Edits by hand: copy shelf.json to dashboard/lib/shelf.json too (the public /shop page).
+
 shelf.json: {"channels": [...], "items": [{"name", "url", "label", "tags": [...], "any": bool}]}
 An item matches when one of its tags appears in the clip's topic or title; items with "any" fit every
 wildlife clip and are used when nothing more specific matches. No match = no link (never a cat-litter
@@ -19,6 +21,7 @@ import zlib
 from pathlib import Path
 
 SHELF = Path(__file__).with_name("shelf.json")
+PAGE_COPY = Path(__file__).parents[2] / "dashboard" / "lib" / "shelf.json"   # the public /shop page (IG bio link)
 
 
 def _load() -> dict:
@@ -38,7 +41,8 @@ def pick(channel_id: str, topic: str, title: str) -> dict | None:
 
 
 def caption_line(item: dict) -> str:
-    return f"\n\n🛒 {item.get('label') or item['name'][:60]}\n🔗 {item['url']}\n(ลิงก์ affiliate — ช่องได้ค่าคอมเล็กน้อยเมื่อสั่งผ่านลิงก์)"
+    return (f"\n\n🛒 {item.get('label') or item['name'][:60]}\n🔗 {item['url']}\n"
+            "👉 ดูใน IG: กดลิงก์ในโปรไฟล์ › ของจากคลิป\n(ลิงก์ affiliate — ช่องได้ค่าคอมเล็กน้อยเมื่อสั่งผ่านลิงก์)")
 
 
 def import_csv(path: str, tags: list[str]) -> int:
@@ -47,13 +51,14 @@ def import_csv(path: str, tags: list[str]) -> int:
     added = 0
     with open(path, encoding="utf-8-sig") as f:
         for row in csv.DictReader(f):
-            url = (row.get("Offer Link") or row.get("affiliate_url") or "").strip()
+            url = (row.get("Offer Link") or row.get("ลิงก์ข้อเสนอ") or row.get("affiliate_url") or "").strip()
             if url and url not in have:
-                shelf["items"].append({"name": row.get("Item Name", "").strip(), "url": url, "label": "",
+                shelf["items"].append({"name": (row.get("Item Name") or row.get("ชื่อสินค้า") or "").strip(), "url": url, "label": "",
                                        "tags": tags, "any": not tags})
                 have.add(url)
                 added += 1
-    SHELF.write_text(json.dumps(shelf, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    for f in (SHELF, PAGE_COPY):
+        f.write_text(json.dumps(shelf, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return added
 
 
