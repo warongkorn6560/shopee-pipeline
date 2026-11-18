@@ -120,15 +120,17 @@ function character(spec) {
       l.rotation.z = s * 0.35;
     }
   }
-  c.arms = [-1, 1].map((s) => {
-    const pv = at(new THREE.Group(), s * 0.25, 0.52, 0, torso);
-    at(part(cap(0.062, 0.34), spec.coat || spec.sleeve || spec.top), 0, -0.21, 0, pv);
-    at(part(sph(0.066), skin), 0, -0.45, 0, pv);
+  c.arms = [-1, 1].map((s) => {                                  // shoulder pivot sits inside the chest
+    const sleeve = spec.coat || spec.sleeve || spec.top;           // and a ball joint keeps every pose attached
+    const pv = at(new THREE.Group(), s * 0.165 * (spec.build || 1), 0.48, 0, torso);
+    at(part(sph(0.075), sleeve), 0, 0, 0, pv);
+    at(part(cap(0.062, 0.34), sleeve), 0, -0.21, 0, pv);
+    at(part(sph(0.066), skin), 0, -0.44, 0, pv);
     return pv;
   });
   if (spec.accessory === "apron") at(part(rbox(0.34, 0.5, 0.02, 0.008), 0xf4f1ea), 0, 0.12, 0.165, torso);
   if (spec.accessory === "tie") {
-    at(part(box(0.05, 0.28, 0.015), spec.accent || 0xb3262e), 0, 0.33, 0.17, torso);
+    at(part(box(0.05, 0.28, 0.015), spec.accent || 0xb3262e), 0, 0.33, 0.155, torso);
     at(part(box(0.2, 0.05, 0.03), spec.top), 0, 0.53, 0.12, torso);
   }
   if (spec.accessory === "scarf") {
@@ -157,7 +159,7 @@ function character(spec) {
     return e;
   });
   c.brows = [-1, 1].map((s) => at(part(box(0.085, 0.02, 0.02), spec.hair, { outline: false }), s * 0.09, 0.275, 0.228, head));
-  const mouth = at(new THREE.Group(), 0, 0.065, 0.222, head);
+  const mouth = at(new THREE.Group(), 0, 0.065, 0.212, head);
   c.mouth = {
     smile: at(new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.01, 6, 14, Math.PI), toon(0x4a1e1e)), 0, 0.02, 0, mouth),
     flat: at(new THREE.Mesh(box(0.06, 0.012, 0.01), toon(0x4a1e1e)), 0, 0, 0, mouth),
@@ -205,7 +207,7 @@ function character(spec) {
   if (spec.accessory === "earrings") for (const s of [-1, 1]) at(part(sph(0.022), 0xf2c94c), s * 0.25, 0.1, 0.02, head);
 
   if (spec.owl) {                                                   // ฮูก on the detective's left shoulder
-    const owl = at(new THREE.Group(), 0.25, 0.62, -0.02, torso);
+    const owl = at(new THREE.Group(), 0.21, 0.5, -0.02, torso);
     at(part(sph(0.11), 0x8d8a96), 0, 0.06, 0, owl).scale.set(1, 1.15, 0.95);
     at(part(sph(0.07), 0xd8cfc0, { outline: false }), 0, 0.03, 0.06, owl).scale.set(1, 1.2, 0.6);
     const oh = at(new THREE.Group(), 0, 0.19, 0, owl);
@@ -222,6 +224,71 @@ function character(spec) {
   }
   Object.assign(c, { root, body, torso, head });
   return c;
+}
+
+const DETECTIVE = {
+  skin: 0xc68b62, hair: 0x15110f, hairStyle: "messy", top: 0x2f3036, bottom: 0x3a3a44, coat: 0xd9a52b,
+  coatDark: 0xb8861c, glasses: 0x5a3a1e, owl: true, height: 1.0, phase: 0.3,
+};
+const ACTS = ["idle", "walk", "point", "think", "inspect", "nervous", "shock", "wave"];
+
+// Rig check: every visible part of a character must touch the rest of the body in every pose, so a missing
+// neck or a detached arm fails the render instead of reaching a clip. Each mesh's surface is sampled into
+// 2 cm voxels; meshes sharing a voxel are joined; anything outside the largest group is "floating".
+export function checkRigs(specs = []) {
+  const hairs = ["short", "spiky", "bald", "bun", "long", "messy"];
+  const accs = [undefined, "apron", "cap", "chef", "tie", "bag", "earrings", "scarf"];
+  const all = [{ name: "detective", spec: DETECTIVE }, ...specs.map((s, i) => ({ name: `suspect ${i + 1}`, spec: s }))];
+  for (const [i, hs] of hairs.entries()) for (const [k, acc] of accs.entries()) {
+    all.push({ name: `${hs}/${acc || "plain"}`, spec: { skin: SKINS[i % 5], hair: 0x222222, hairStyle: hs, top: 0x2e6fb0,
+      bottom: 0x2b2b33, accessory: acc, glasses: k % 3 === 0 ? 0x222222 : undefined, build: [0.9, 1.19][k % 2], height: 1 } });
+  }
+  const VOX = 0.02, a = V(), b = V(), c = V(), p = V(), errors = [];
+  for (const { name, spec } of all) {
+    const ch = character(spec);
+    for (const act of ACTS) for (const t of [0, 0.37, 1.1]) {
+      pose(ch, t, act, "neutral");
+      ch.root.updateMatrixWorld(true);
+      const meshes = [];
+      ch.root.traverse((o) => {
+        if (!o.isMesh || o.material.isShaderMaterial) return;
+        for (let q = o; q; q = q.parent) if (!q.visible) return;
+        meshes.push(o);
+      });
+      const par = meshes.map((_, i) => i);
+      const find = (i) => (par[i] === i ? i : (par[i] = find(par[i])));
+      const owner = new Map();
+      meshes.forEach((m, mi) => {
+        const pos = m.geometry.attributes.position, idx = m.geometry.index;
+        const n = idx ? idx.count : pos.count;
+        for (let f = 0; f < n; f += 3) {
+          const v = [0, 1, 2].map((e) => (idx ? idx.getX(f + e) : f + e));
+          a.fromBufferAttribute(pos, v[0]).applyMatrix4(m.matrixWorld);
+          b.fromBufferAttribute(pos, v[1]).applyMatrix4(m.matrixWorld);
+          c.fromBufferAttribute(pos, v[2]).applyMatrix4(m.matrixWorld);
+          const steps = Math.max(1, Math.ceil(Math.max(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a)) / (VOX / 2)));
+          for (let u = 0; u <= steps; u++) for (let w = 0; u + w <= steps; w++) {
+            p.copy(a).multiplyScalar(1 - (u + w) / steps).addScaledVector(b, u / steps).addScaledVector(c, w / steps);
+            const key = `${Math.floor(p.x / VOX)},${Math.floor(p.y / VOX)},${Math.floor(p.z / VOX)}`;
+            const o = owner.get(key);
+            if (o === undefined) owner.set(key, mi); else par[find(o)] = find(mi);
+          }
+        }
+      });
+      const size = new Map();
+      meshes.forEach((_, i) => size.set(find(i), (size.get(find(i)) || 0) + 1));
+      const main = [...size.entries()].sort((x, y) => y[1] - x[1])[0][0];
+      const loose = meshes.filter((_, i) => find(i) !== main);
+      if (loose.length) {
+        const where = loose.slice(0, 3).map((m) => {
+          m.getWorldPosition(p);
+          return `${m.geometry.type.replace("Geometry", "")}@(${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)})`;
+        });
+        errors.push(`${name} ${act} t=${t}: ${loose.length} floating part(s) ${where.join(" ")}`);
+      }
+    }
+  }
+  return errors;
 }
 
 // emotion + action → pose for this frame
@@ -563,12 +630,9 @@ export function setup(j) {
   const rim = new THREE.SpotLight(0xff3040, 0, 6, 0.5, 0.6, 1);       // red back-light on the culprit
   scene.add(rim, rim.target);
 
-  const det = character({
-    skin: 0xc68b62, hair: 0x15110f, hairStyle: "messy", top: 0x2f3036, bottom: 0x3a3a44, coat: 0xd9a52b,
-    coatDark: 0xb8861c, glasses: 0x5a3a1e, owl: true, height: 1.0, phase: 0.3,
-  });
+  const det = character(DETECTIVE);
   scene.add(det.root);
-  const torch = at(part(cyl(0.012, 0.012, 0.12, 8), 0xc9a243), 0, -0.5, 0.04, det.arms[0]);
+  const torch = at(part(cyl(0.012, 0.012, 0.12, 8), 0xc9a243), 0, -0.47, 0.04, det.arms[0]);
   torch.rotation.x = Math.PI / 2;
 
   const sus = (j.suspects || []).map((s, i) => {

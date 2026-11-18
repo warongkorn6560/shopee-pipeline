@@ -1,5 +1,6 @@
 // Render every shot of a toon3d job to its own mp4.
 //   node render.mjs job.json
+//   node render.mjs --check        (rig check only: no part of any character may float off the body)
 // The page (index.html + scene.js) runs three.js on software WebGL (SwiftShader) in headless Chromium,
 // so it needs no GPU. Each frame is read back as JPEG and piped into ffmpeg.
 import { spawn } from "node:child_process";
@@ -9,7 +10,8 @@ import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const job = JSON.parse(readFileSync(process.argv[2], "utf8"));
+const checkOnly = process.argv[2] === "--check";
+const job = checkOnly ? { suspects: [] } : JSON.parse(readFileSync(process.argv[2], "utf8"));
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript" };
 const FILES = {
   "/index.html": join(here, "index.html"),
@@ -36,6 +38,15 @@ page.on("request", (req) => {
 await page.setViewport({ width: 360, height: 640 });
 await page.goto("http://toon3d.local/index.html");
 await page.waitForFunction("window.ready === true", { timeout: 60000 });
+const t0check = Date.now();
+const rigErrors = await page.evaluate((specs) => window.checkRigs(specs), job.suspects || []);
+if (rigErrors.length) {
+  console.error(`    [toon3d] rig check FAILED (${rigErrors.length}):\n      ` + rigErrors.slice(0, 20).join("\n      "));
+  await browser.close();
+  process.exit(1);
+}
+console.log(`    [toon3d] rig check ok (${((Date.now() - t0check) / 1000).toFixed(1)} s)`);
+if (checkOnly) { await browser.close(); process.exit(0); }
 await page.evaluate((j) => window.setup(j), job);
 
 const started = Date.now();
